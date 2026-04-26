@@ -10,9 +10,12 @@ description: >
   Requires cmux environment. MUST delegate ideation to superpowers:brainstorming
   skill, then writes .claude/PRD.md and initializes .claude/project.db (phase 1 of 3).
   Always bootstraps project.db + project_info (auto-migrates existing projects)
-  before any PRD work. Does NOT configure agents or cmux panes — use project:agent
-  and project:reload for those.
-version: 0.7.1
+  before any PRD work. Also installs .claude/script/project-view.sh — a thin
+  shell wrapper that lets the project launch the cmux monitor stack from a
+  plain terminal without going through Claude Code's slash command surface.
+  Does NOT configure agents or cmux panes — use project:agent and project:reload
+  for those.
+version: 0.7.2
 ---
 
 # Project Init — PRD 작성
@@ -163,6 +166,59 @@ fi
 **이 단계는 절대 skip되지 않는다.** 기존에 이미 PRD/에이전트까지 완료된
 프로젝트도 반드시 `project_info` 캡처를 먼저 받고 그 이후에 이 스킬의 나머지
 작업이 진행된다.
+
+### Step 1b: Install `.claude/script/project-view.sh` shell wrapper
+
+**강제 단계 — 모든 경로에서 반드시 실행된다.** caller pane이 다른 작업으로
+바쁘거나 슬래시 명령을 입력할 수 없는 상황에서도 `/project-view` 기능을 셸
+한 줄로 띄울 수 있도록, 프로젝트 루트의 `.claude/script/`에 wrapper를
+복사한다. wrapper는 마켓플레이스 캐시 → `CLAUDE_PLUGIN_ROOT` →
+`CMUX_WORKSHOP_HOME` 순서로 실제 `start.sh` 위치를 자동 탐색하므로 설치
+방식과 무관하게 동작한다.
+
+```bash
+SRC="${CLAUDE_PLUGIN_ROOT}/skills/project-init/references/project-view.sh"
+DST_DIR="$PWD/.claude/script"
+DST="$DST_DIR/project-view.sh"
+
+mkdir -p "$DST_DIR"
+
+# 멱등 복사 — 내용이 동일하면 mtime/권한만 갱신.
+if [ ! -f "$DST" ] || ! cmp -s "$SRC" "$DST"; then
+    cp "$SRC" "$DST"
+    chmod +x "$DST"
+    echo "→ .claude/script/project-view.sh 설치/갱신 완료"
+else
+    chmod +x "$DST"
+    echo "→ .claude/script/project-view.sh 최신 상태"
+fi
+```
+
+**분기 요약:**
+
+| 상태 | 동작 |
+|------|------|
+| `.claude/script/` 없음 | `mkdir -p`로 생성 → wrapper 복사 |
+| wrapper 없음 | 새로 복사 + `chmod +x` |
+| wrapper 존재 + 내용 동일 | 권한만 보장(`chmod +x`), 복사 skip |
+| wrapper 존재 + 내용 상이 (플러그인 업그레이드 등) | 최신 wrapper로 덮어쓰기 |
+
+**사용 예 (사용자 안내 메시지):**
+
+```text
+프로젝트 루트에서 셸로 직접 실행:
+  .claude/script/project-view.sh start    # = /project-view
+  .claude/script/project-view.sh stop     # = /project-view-stop
+  .claude/script/project-view.sh check    # 의존성 점검만
+
+cmux 안에서 caller를 막지 않으려면:
+  cmux new-split right
+  .claude/script/project-view.sh && open http://localhost:5173
+```
+
+**git 정책:** 이 wrapper는 프로젝트와 함께 commit해도 안전하다 — 절대 경로나
+머신 로컬 정보를 담지 않고, 동작 시점에 동적으로 플러그인 위치를 해결한다.
+다른 머신에서 plugin이 다른 경로에 설치되어 있어도 그대로 작동한다.
 
 ### Step 2: Check existing PRD status
 
