@@ -723,6 +723,71 @@ tools/db.sh quote "user's input"            # SQL 안전 이스케이프
 | `/code-explore` | 다중 에이전트 코드베이스 심층 분석 |
 | `/merge-permissions` | 로컬 `.claude/settings.local.json`을 글로벌로 병합 |
 
+## Claude Code에 설치하기
+
+cmux-workshop은 **마켓플레이스 설치(권장)** 와 **로컬 클론** 두 가지 경로를 모두 지원한다. 두 방식 모두 설치 후 별도의 종속성(redis, node, python redis, 웹 패키지)은 [빠른 시작](#빠른-시작)의 사전 준비를 따라 갖춰야 한다 — 플러그인은 의존성을 자동 설치하지 않는다.
+
+### 방법 1 — 마켓플레이스로 설치 (권장)
+
+다른 프로젝트에서도 모든 skill·command·hook을 그대로 쓰려면 마켓플레이스 등록이 깔끔하다. Claude Code 안에서 다음을 차례로 실행한다.
+
+```
+/plugin marketplace add merong/cmux-workshop
+/plugin install cmux-workshop@cmux-workshop
+```
+
+설치 후 Claude Code를 재시작하면 모든 슬래시 명령(`/project-view`, `/project-init`, `/project-agent`, `/project-reload`, `/project-status`, `/project-reset`, `/project-view-stop`, `/code-quality`, `/code-explore`, `/merge-permissions`)이 활성화된다.
+
+마켓플레이스가 등록됐는지 확인:
+
+```
+/plugin
+```
+
+### 방법 2 — 로컬 클론 (기여·내부 수정용)
+
+플러그인을 직접 수정하거나 메인 브랜치보다 앞선 변경을 시험하려면 로컬 클론 후 동봉된 `.claude/settings.json`이 활성화 역할을 그대로 맡게 한다.
+
+```bash
+git clone https://github.com/merong/cmux-workshop.git
+cd cmux-workshop
+```
+
+저장소 루트의 `.claude/settings.json`은 다음과 같이 이미 설정되어 있다 — 별도 수정 없이 이 디렉토리에서 Claude Code를 띄우면 자동 활성화된다.
+
+```json
+{
+  "enabledLocalPlugins": {
+    "plugins/cmux-workshop/.claude-plugin": true
+  }
+}
+```
+
+다른 프로젝트에서 이 로컬 클론을 그대로 사용하고 싶다면, 그 프로젝트의 `.claude/settings.json`에 위 키를 동일하게 넣고 절대 경로로 `enabledLocalPlugins` 항목을 가리킨다.
+
+### 활성화 확인
+
+```
+/plugin                                    # Claude Code 안에서
+```
+
+`cmux-workshop`이 enabled로 표시되면 끝. 셸에서 직접 보고 싶으면:
+
+```bash
+ls ~/.claude/plugins/marketplace/          # 마켓플레이스 등록 확인
+ls ~/.claude/plugins/cache/                # 설치된 플러그인 캐시
+```
+
+### 업데이트 / 제거
+
+```
+/plugin update cmux-workshop@cmux-workshop
+/plugin uninstall cmux-workshop@cmux-workshop
+/plugin marketplace remove cmux-workshop
+```
+
+로컬 클론 모드는 `.claude/settings.json`의 해당 항목을 `false`로 바꾸거나 키를 지우면 비활성화된다.
+
 ## 빠른 시작
 
 1. **사전 준비** (한 번만)
@@ -734,7 +799,7 @@ tools/db.sh quote "user's input"            # SQL 안전 이스케이프
    ( cd plugins/cmux-workshop/skills/project-view/runtime/web && npm run install:all )
    ```
 
-2. **플러그인 활성화** — Claude Code에서 이 디렉토리를 로컬 마켓플레이스로 등록.
+2. **플러그인 활성화** — [Claude Code에 설치하기](#claude-code에-설치하기) 섹션을 따라 마켓플레이스 또는 로컬 클론 방식으로 활성화.
 
 3. **새 프로젝트라면**
 
