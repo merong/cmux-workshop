@@ -142,12 +142,26 @@ Always finish with the verification commands below.
 
 ## Versioning rules
 
-Bump in lockstep:
+**Every push that touches plugin files must bump the plugin version in
+lockstep.** That means *any* change under `plugins/cmux-workshop/...`
+(agents, commands, hooks, tools, skills, references, scripts, manifests),
+not only changes to the headline `project-view` skill.
 
-- `marketplace.json` → `plugins[0].version`
+Bump in lockstep — same commit:
+
+- `.claude-plugin/marketplace.json` → `plugins[0].version`
 - `plugins/cmux-workshop/.claude-plugin/plugin.json` → `version`
-- `skills/project-view/SKILL.md` → frontmatter `version`
-- (Other skills bump their own SKILL.md `version` only when their behavior changes.)
+
+Independently bump (additive, not lockstep):
+
+- The affected skill's `SKILL.md` frontmatter `version` whenever its behavior changes.
+- `skills/project-view/SKILL.md` `version` follows the plugin lockstep historically because it is the headline skill.
+
+Pure top-level docs (`README*.md`, this `CLAUDE.md`) that do not ship inside
+`plugins/<name>/` do not require a plugin bump.
+
+If a missed bump is discovered after push, fix it in a follow-up commit —
+do not rewrite published history.
 
 ## Out of scope (intentional)
 
