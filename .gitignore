@@ -1,0 +1,45 @@
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+build/
+out/
+*.log
+*.tsbuildinfo
+
+# Plugin runtime artifacts (machine-local)
+/tmp/cmux-workshop-*.pid
+/tmp/cmux-workshop-*.log
+/tmp/cmux-proxy.log
+
+# User-local project.db when cmux-workshop is targeted at itself
+.claude/project.db
+.claude/project.db-journal
+.claude/project.db-wal
+.claude/project.db-shm
+
+# Codex / Claude / Superpowers session caches
+.codex/
+.superpowers/
+
+# Machine-local Claude Code overrides (per-user permissions cache)
+.claude/settings.local.json

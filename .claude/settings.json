@@ -1,0 +1,5 @@
+{
+  "enabledLocalPlugins": {
+    "plugins/cmux-workshop/.claude-plugin": true
+  }
+}

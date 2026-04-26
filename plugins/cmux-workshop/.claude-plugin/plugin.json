@@ -1,0 +1,19 @@
+{
+  "name": "cmux-workshop",
+  "version": "0.1.2",
+  "description": "Unified cmux toolkit: /project-view one-shot monitor launcher + cmux terminal control, project workspace orchestration (init/agent/reload/reset/status), save-conversation, code-quality and code-explore commands, six multi-agent personas, and PreToolUse security hooks",
+  "author": {
+    "name": "cmux Workshop"
+  },
+  "license": "MIT",
+  "keywords": [
+    "cmux",
+    "monitor",
+    "dashboard",
+    "observability",
+    "multi-agent",
+    "project-workspace",
+    "code-quality",
+    "security"
+  ]
+}
