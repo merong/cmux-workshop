@@ -1,0 +1,78 @@
+/* Markdown rendered content */
+.msg-text.md-rendered {
+  white-space: normal;
+}
+.msg-text.md-rendered p {
+  margin-bottom: var(--sp-2);
+  line-height: var(--lh-normal);
+}
+.msg-text.md-rendered p:last-child { margin-bottom: 0; }
+.msg-text.md-rendered h1,
+.msg-text.md-rendered h2,
+.msg-text.md-rendered h3,
+.msg-text.md-rendered h4,
+.msg-text.md-rendered h5,
+.msg-text.md-rendered h6 {
+  margin: var(--sp-3) 0 var(--sp-2);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+.msg-text.md-rendered h1 { font-size: var(--fs-2xl); }
+.msg-text.md-rendered h2 { font-size: var(--fs-xl); }
+.msg-text.md-rendered h3 { font-size: var(--fs-lg); }
+.msg-text.md-rendered h4 { font-size: var(--fs-md); }
+.msg-text.md-rendered h5,
+.msg-text.md-rendered h6 { font-size: var(--fs-sm); }
+.msg-text.md-rendered ul,
+.msg-text.md-rendered ol {
+  margin: var(--sp-1) 0 var(--sp-2) var(--sp-5);
+}
+.msg-text.md-rendered li {
+  margin-bottom: var(--sp-1);
+  line-height: var(--lh-normal);
+}
+.msg-text.md-rendered code {
+  background: var(--bg);
+  padding: 0 var(--sp-1);
+  border-radius: 3px;
+  font-size: var(--fs-sm);
+  font-family: 'SF Mono', Monaco, Menlo, monospace;
+}
+.msg-text.md-rendered pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--sp-3);
+  overflow-x: auto;
+  margin: var(--sp-2) 0;
+}
+.msg-text.md-rendered pre code {
+  background: none;
+  padding: 0;
+}
+.msg-text.md-rendered blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: var(--sp-3);
+  color: var(--text-muted);
+  margin: var(--sp-2) 0;
+}
+.msg-text.md-rendered a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.msg-text.md-rendered a:hover { text-decoration: underline; }
+.msg-text.md-rendered table {
+  border-collapse: collapse;
+  margin: var(--sp-2) 0;
+  font-size: var(--fs-sm);
+}
+.msg-text.md-rendered th,
+.msg-text.md-rendered td {
+  border: 1px solid var(--border);
+  padding: var(--sp-1) var(--sp-2);
+}
+.msg-text.md-rendered th {
+  background: var(--bg);
+  font-weight: var(--fw-semibold);
+}

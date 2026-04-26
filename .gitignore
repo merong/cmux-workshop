@@ -29,7 +29,10 @@ out/
 # Plugin runtime artifacts (machine-local)
 /tmp/cmux-workshop-*.pid
 /tmp/cmux-workshop-*.log
-/tmp/cmux-proxy.log
+
+# project-view runtime build/install artifacts (vendored redis-chat-ui)
+plugins/cmux-workshop/skills/project-view/runtime/dist/
+plugins/cmux-workshop/skills/project-view/runtime/node_modules/
 
 # User-local project.db when cmux-workshop is targeted at itself
 .claude/project.db

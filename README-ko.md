@@ -110,7 +110,7 @@ flowchart LR
 좋은 도구는 사용자가 외워야 할 것을 줄인다. cmux-workshop이 의식적으로 따른 규칙들.
 
 - **단일 진입점** — 가장 자주 쓰는 동작은 `/project-*` 슬래시 명령 하나로 시작한다. 모니터 종료도 `/project-view-stop`으로 같은 네이밍 안에 둔다.
-- **트리거 자연어** — `/project-view` 외에도 "cmux 모니터 열어", "프로젝트 뷰", "open cmux monitor" 같은 자연어로도 호출된다. 명령을 외우지 않아도 의도가 통한다.
+- **트리거 자연어** — `/project-view` 외에도 "프로젝트 뷰", "cmux 채팅 뷰", "claude code 활동 보기" 같은 자연어로도 호출된다. 명령을 외우지 않아도 의도가 통한다.
 - **설치 없는 안내** — 의존성이 빠져 있으면 자동으로 설치하지 않고 `brew install ...` 한 줄을 출력한다. 사용자 머신에 모르는 사이 무언가 깔리는 일은 없다.
 - **idempotent 호출** — 이미 켜져 있는 모니터를 다시 켜도 안전하다. 브라우저만 다시 열린다.
 - **상태 안내 우선** — `project-status`가 "다음에 무엇을 할지"를 항상 알려준다. 사용자가 워크플로우 전체를 외울 필요가 없다.
@@ -149,8 +149,8 @@ flowchart LR
 
     subgraph Ops["운영 · 관찰"]
         V["/project-view"]
-        Mon[("프록시 + 웹 +<br/>폴링")]
-        UI[("브라우저<br/>localhost:13331")]
+        Mon[("redis-chat-ui<br/>express + ws")]
+        UI[("브라우저<br/>localhost:11573")]
         S["/project-status"]
         V --> Mon --> UI
     end
@@ -190,10 +190,10 @@ flowchart LR
     end
 
     subgraph Monitor["project-view 런타임"]
-        Proxy[proxy.py<br/>소켓 프록시]
-        Redis[(Redis Streams)]
-        WebSrv[Express + Socket.io]
-        UI[Vite + React<br/>localhost:13331]
+        Producers[("Claude Code hooks<br/>(prompt-submit · stop · idle ·<br/>pre/post-tool-use)")]
+        Redis[("Redis Stream<br/>cmux:hooks")]
+        WebSrv[express + WebSocket<br/>server.js]
+        UI[React 19<br/>localhost:11573]
     end
 
     User -->|"/project-* 호출"| ClaudeCode
@@ -205,16 +205,17 @@ flowchart LR
     Skills -->|"cmux CLI"| Sock
     Sock --> Panes
 
-    Sock <-.가로채기.-> Proxy
-    Proxy --> Redis
+    ClaudeCode -.hook 이벤트.-> Producers
+    Producers --> Redis
     Redis --> WebSrv
     WebSrv -.WebSocket.-> UI
+    WebSrv -.cmux rpc.-> Sock
     UI -->|"브라우저"| User
 
     Hooks -.PreToolUse.-> ClaudeCode
 ```
 
-플러그인은 **상태(.claude/)**, **cmux 앱(소켓)**, **모니터 런타임**의 세 영역을 다리 놓는다. 모든 skill은 같은 `tools/db.sh` 위에서 동작해 일관된 SQLite 스키마를 공유한다.
+플러그인은 **상태(.claude/)**, **cmux 앱(소켓)**, **project-view 런타임(redis-chat-ui)**의 세 영역을 다리 놓는다. 모든 skill은 같은 `tools/db.sh` 위에서 동작해 일관된 SQLite 스키마를 공유한다.
 
 ---
 
@@ -244,8 +245,8 @@ flowchart TD
     DBPhase3[("local_workspace +<br/>local_surfaces<br/>progress.deployed = 1")]
 
     View["/project-view"]
-    MonitorUp[모니터 풀스택 ON]
-    Browser[("브라우저 자동 오픈<br/>localhost:13331")]
+    MonitorUp[redis-chat-ui 서버 ON<br/>express + WebSocket]
+    Browser[("브라우저 자동 오픈<br/>localhost:11573")]
 
     Start --> Init
     Init --> Brainstorm
@@ -383,50 +384,47 @@ flowchart LR
 
 ---
 
-## 시나리오 4 — 실시간 관찰: project-view
+## 시나리오 4 — 실시간 관찰: project-view (redis-chat-ui)
 
-배포가 끝난 뒤 "지금 에이전트들이 실제로 cmux 소켓에 무엇을 던지고 있는가?"를 보고 싶을 때.
+배포가 끝난 뒤 "지금 에이전트들과 사용자가 어떤 hook 이벤트(prompt-submit, tool 호출, stop/idle)를 주고받았는가?"를 chat 형태로 보고 싶을 때.
 
 ```mermaid
 sequenceDiagram
     actor U as 개발자
     participant CC as Claude Code
-    participant PV as project-view
+    participant Hooks as cmux-workshop hooks<br/>(PreToolUse · PostToolUse ·<br/>session lifecycle)
+    participant PV as project-view (start.sh)
     participant Dep as check-deps.sh
-    participant CMP as cmux-proxy.sh
-    participant Web as web (Express+Vite)
-    participant Poll as polling_monitor.py
+    participant Build as npm run build<br/>(필요 시 1회)
+    participant Srv as runtime/server.js<br/>(express + ws)
+    participant R as Redis Stream<br/>cmux:hooks
     participant CS as cmux.sock
-    participant R as Redis Streams
     participant B as 브라우저
+
+    par 항상 가동
+        CC->>Hooks: tool/session 이벤트
+        Hooks->>R: XADD cmux:hooks (+ HSET detail Hash)
+    end
 
     U->>CC: /project-view
     CC->>PV: invoke (start.sh)
-    PV->>Dep: 의존성 검사
+    PV->>Dep: redis / node / npm / runtime/node_modules 검사
     Dep-->>PV: 모두 OK
-
-    PV->>CMP: ./cmux-proxy.sh inject
-    note over CMP,CS: 원본 소켓을 cmux-real.sock 으로<br/>이동, proxy.py를 cmux.sock 위치에 binding
-    CMP->>CS: 트래픽 가로채기 시작
-    CS->>R: XADD cmux:requests / cmux:responses
-
-    par 백그라운드 가동
-        PV->>Web: nohup npm run dev
-        Web->>R: XREAD streams
-    and
-        PV->>Poll: nohup python3 polling_monitor.py
-        Poll->>CS: cmux read-screen (주기)
-        Poll->>R: XADD cmux:terminal_output
-    end
-
-    PV->>Web: curl localhost:13331 (60s 헬스체크)
-    Web-->>PV: 200 OK
-    PV-->>CC: "READY: http://localhost:13331"
+    PV->>Build: dist/index.html 없으면 vite build
+    Build-->>PV: dist/ 생성
+    PV->>Srv: nohup PORT=11573 node server.js
+    Srv->>R: XREVRANGE / XREAD cmux:hooks
+    Srv->>CS: cmux rpc workspace.list / surface.list (메타데이터)
+    PV->>Srv: curl localhost:11573 (60s 헬스체크)
+    Srv-->>PV: 200 OK
+    PV-->>CC: "READY: http://localhost:11573"
     CC->>B: open URL
-    B-->>U: 대시보드 표시 (Traffic / Workspace / Terminal / Stats)
+    B->>Srv: GET /  (정적 dist 서빙)
+    B<<->>Srv: WebSocket /ws  (실시간 hook 이벤트 스트림)
+    B-->>U: 워크스페이스별 chat timeline
 ```
 
-**관찰 가능한 것**: 모든 JSON-RPC 호출, 워크스페이스 트리, 각 surface의 라이브 터미널 화면, 메서드별 통계. 디버깅과 데모 시연 모두에 직접 활용된다.
+**관찰 가능한 것**: workspace 단위로 묶인 prompt-submit / pre-tool-use / post-tool-use / stop / idle 이벤트, tool 호출 input/response preview, cmux RPC로 enrich한 workspace 제목·색상.
 
 ---
 
@@ -518,13 +516,15 @@ cmux-workshop/
 │   │   ├── queries/                    # 재사용 SQL
 │   │   └── scripts/project-info-{capture,show}.sh
 │   └── skills/
-│       ├── project-view/               # 모니터 원샷 런처 (vendor cmux-monitor)
+│       ├── project-view/               # project-view 원샷 런처 (vendor redis-chat-ui)
 │       │   ├── SKILL.md
-│       │   ├── scripts/{start,check-deps,helpers}.sh
-│       │   ├── runtime/                # cmux-monitor 풀스택을 vendor 복사
-│       │   │   ├── proxy.py · monitor.py · polling_monitor.py · consumer.py
-│       │   │   ├── cmux-proxy.sh · requirements.txt
-│       │   │   └── web/{server, client, scripts}
+│       │   ├── scripts/{start,stop,check-deps,helpers}.sh
+│       │   ├── runtime/                # redis-chat-ui 단일 stack을 vendor 복사
+│       │   │   ├── server.js           # express + WebSocket + redis stream consumer
+│       │   │   ├── vite.config.js      # build-time only
+│       │   │   ├── package.json · package-lock.json
+│       │   │   ├── lib/parser.js       # 스트림 필드 정규화
+│       │   │   └── client/             # React 19 (App.jsx, components, hooks, styles)
 │       │   └── references/{architecture,troubleshooting}.md
 │       ├── cmux/                       # cmux 직접 제어 (split/notify/browser)
 │       ├── save-conversation/          # 대화 마크다운 저장
@@ -807,7 +807,7 @@ ls ~/.claude/plugins/cache/                # 설치된 플러그인 캐시
    /project-init     ← 브레인스토밍 + PRD
    /project-agent    ← 에이전트 팀 구성
    /project-reload   ← cmux 배포
-   /project-view     ← 모니터 + 브라우저
+   /project-view     ← redis-chat-ui 서버 + 브라우저
    ```
 
 4. **재개라면**
@@ -815,21 +815,23 @@ ls ~/.claude/plugins/cache/                # 설치된 플러그인 캐시
    ```
    /project-status   ← 상태 확인
    /project-reload   ← 필요 시 복원
-   /project-view     ← 모니터 재가동
+   /project-view     ← project-view 재가동
    ```
 
 ## 운영 메모
 
-- PID/로그: `/tmp/cmux-workshop-{web,polling}.{pid,log}`, `/tmp/cmux-proxy.log`
-- 모니터 대시보드: `http://localhost:13331`
-- 모니터 종료: `/project-view-stop`
-- 환경 변수: `CMUX_WORKSHOP_DB_PATH` (DB 경로 오버라이드), `CMUX_WORKSHOP_DEBUG=1` (db.sh 트레이스)
+- PID/로그: `/tmp/cmux-workshop-web.{pid,log}` (단일 `node server.js` 프로세스)
+- 대시보드: `http://localhost:11573` (`CMUX_WORKSHOP_SERVER_PORT`로 오버라이드)
+- 종료: `/project-view-stop`
+- 환경 변수:
+  - `CMUX_WORKSHOP_DB_PATH` (DB 경로 오버라이드), `CMUX_WORKSHOP_DEBUG=1` (db.sh 트레이스)
+  - `CMUX_WORKSHOP_SERVER_PORT` (default 11573), `REDIS_URL` (default `redis://127.0.0.1:6379`), `STREAM_KEY` (default `cmux:hooks`)
 
 ## 디자인 원칙
 
-1. **Self-contained vendor** — cmux-monitor 전체를 `runtime/` 아래로 복사. 외부 경로 의존 0.
+1. **Self-contained vendor** — `redis-chat-ui` 단일 stack 전체를 `runtime/` 아래로 복사. 외부 경로 의존 0.
 2. **단일 네임스페이스** — 마켓플레이스/플러그인/환경변수/PID/로그 모두 `cmux-workshop`. 스킬 이름은 `project-*` 패밀리로 통일.
 3. **CLI-first, 한 줄 우선** — 가장 자주 쓰는 동작은 슬래시 명령 하나로 끝낸다. 추가 스위치는 만들지 않는다(YAGNI).
 4. **자동 설치 금지** — `check-deps.sh`는 진단·안내만. 사용자 머신을 임의로 건드리지 않는다.
 5. **재현성** — 모든 워크플로우 상태는 `.claude/project.db` SQLite에 영속화. 재시작·복원·리셋이 같은 명령으로 동작.
-6. **관찰 가능성** — `project-view`는 단순 데모가 아니라 실제 디버깅·검증 도구. 모든 cmux 트래픽이 즉시 가시화된다.
+6. **관찰 가능성** — `project-view`는 Claude Code hook 이벤트(prompt-submit / pre/post-tool-use / stop / idle)를 workspace 단위 chat timeline으로 보여주는 디버깅·시연 도구.

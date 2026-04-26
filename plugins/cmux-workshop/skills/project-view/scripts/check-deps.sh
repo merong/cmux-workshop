@@ -1,65 +1,95 @@
 #!/usr/bin/env bash
-# Pre-flight dependency check for project-view.
-# Exits 0 when everything is ready. On failure, prints actionable guidance to
-# stderr and exits non-zero so start.sh can abort.
+# Pre-flight dependency probe for the redis-chat-ui project-view runtime.
+# Exits non-zero with install hints when anything is missing.
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=helpers.sh
-source "$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
+source "$SCRIPT_DIR/helpers.sh"
 
 missing=0
-report() {
-    warn "$1"
-    missing=$((missing + 1))
-}
 
-# 1) cmux CLI + running socket
-if ! command -v cmux >/dev/null 2>&1; then
-    report "cmux CLI not found in PATH. Install the cmux app from https://cmux.dev (or your internal source)."
-else
-    socket_path="${CMUX_SOCKET_PATH:-$HOME/Library/Application Support/cmux/cmux.sock}"
-    if [ ! -S "$socket_path" ]; then
-        report "cmux app does not appear to be running (socket missing at $socket_path). Launch the cmux app first."
-    fi
-fi
-
-# 2) Redis server
+# Redis
 if ! command -v redis-cli >/dev/null 2>&1; then
-    report "redis-cli not found. Install Redis: brew install redis && brew services start redis"
-elif ! redis-cli ping >/dev/null 2>&1; then
-    report "Redis server is not responding. Start it: brew services start redis"
+    warn "redis-cli not found."
+    cat >&2 <<'HINT'
+  → Install Redis (macOS):
+        brew install redis
+        brew services start redis
+HINT
+    missing=1
+elif ! redis-cli ping 2>/dev/null | grep -q '^PONG$'; then
+    warn "Redis server is not responding to PING ($REDIS_URL)."
+    cat >&2 <<'HINT'
+  → Start Redis (macOS):
+        brew services start redis
+        # or in foreground:
+        redis-server
+HINT
+    missing=1
 fi
 
-# 3) Node.js >= 18
+# Node.js (>= 18)
 if ! command -v node >/dev/null 2>&1; then
-    report "Node.js not found. Install: brew install node (requires version 18 or newer)"
+    warn "node not found."
+    cat >&2 <<'HINT'
+  → Install Node.js 18+:
+        brew install node
+HINT
+    missing=1
 else
-    node_major=$(node -p 'process.versions.node.split(".")[0]')
-    if [ "$node_major" -lt 18 ]; then
-        report "Node.js $node_major detected; need >= 18. Upgrade with: brew upgrade node"
+    node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+    if [ "${node_major:-0}" -lt 18 ]; then
+        warn "node version too old (need ≥ 18, found $(node --version))."
+        missing=1
     fi
 fi
 
-# 4) npm dependencies for the web stack
-if [ ! -d "$WEB_DIR/server/node_modules" ] \
-   || [ ! -d "$WEB_DIR/client/node_modules" ]; then
-    report "Web dashboard dependencies missing. Run: (cd '$WEB_DIR' && npm run install:all)"
+# npm
+if ! command -v npm >/dev/null 2>&1; then
+    warn "npm not found (it ships with Node.js)."
+    missing=1
 fi
 
-# 5) Python redis package
-if ! python3 -c 'import redis' >/dev/null 2>&1; then
-    report "Python redis package missing. Run: pip3 install -r '$RUNTIME_DIR/requirements.txt'"
+# cmux CLI is OPTIONAL — server.js calls 'cmux rpc' for workspace metadata
+# and silently degrades when cmux is absent. We only emit a hint.
+if ! command -v cmux >/dev/null 2>&1; then
+    warn "cmux CLI not found — workspace metadata enrichment will be skipped."
+    cat >&2 <<'HINT'
+  → If you want workspace titles/colors in the UI:
+        sudo ln -sf "/Applications/cmux.app/Contents/Resources/bin/cmux" /usr/local/bin/cmux
+HINT
 fi
 
-# 6) curl for readiness probe
+# curl is needed for the readiness probe.
 if ! command -v curl >/dev/null 2>&1; then
-    report "curl not found. Install with: brew install curl"
+    warn "curl not found."
+    cat >&2 <<'HINT'
+  → Install curl:
+        brew install curl
+HINT
+    missing=1
 fi
 
-if [ "$missing" -gt 0 ]; then
-    warn "$missing dependency issue(s) above must be resolved before /project-view can run."
-    exit 1
+# Vendored runtime present?
+if [ ! -f "$RUNTIME_DIR/server.js" ] || [ ! -f "$RUNTIME_DIR/package.json" ]; then
+    warn "redis-chat-ui runtime is missing files under $RUNTIME_DIR"
+    missing=1
 fi
 
-log "All dependencies satisfied."
+# Node modules — must be installed by the user (we never auto-install).
+if [ ! -d "$RUNTIME_DIR/node_modules" ]; then
+    warn "runtime/node_modules is missing."
+    cat >&2 <<HINT
+  → Install dependencies once:
+        ( cd "$RUNTIME_DIR" && npm install )
+HINT
+    missing=1
+fi
+
+if [ "$missing" -ne 0 ]; then
+    fail "Dependency check failed. Resolve the warnings above and retry."
+fi
+
+log "Dependency check passed."

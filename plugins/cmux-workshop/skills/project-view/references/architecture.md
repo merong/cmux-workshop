@@ -1,43 +1,37 @@
-# project-view Architecture
+# project-view Architecture (redis-chat-ui)
 
 ## Component map
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                          cmux app (macOS)                            │
-│   Unix Domain Socket: ~/Library/Application Support/cmux/cmux.sock   │
-└───────────────────────┬──────────────────────────────────────────────┘
-                        │ JSON-RPC (intercepted)
-┌───────────────────────▼──────────────────────────────────────────────┐
-│ runtime/proxy.py  ── transparent socket proxy                        │
-│   • cmux.sock        ←→ clients (Claude Code, scripts, GUI)          │
-│   • cmux-real.sock   ←→ cmux app (renamed by cmux-proxy.sh inject)   │
-│   • XADD cmux:requests / cmux:responses to Redis Streams             │
+│  Producers (Claude Code hooks)                                       │
+│   • cmux-workshop PreToolUse / PostToolUse hooks                     │
+│   • prompt-submit / stop / idle session hooks                        │
+│   • XADD cmux:hooks  +  HSET <detail_hash> <detail_ref> <full_json>  │
 └───────────────────────┬──────────────────────────────────────────────┘
                         │
                         ▼
                   ┌─────────────┐
-                  │ Redis 6379  │  Streams: cmux:requests, cmux:responses,
-                  └──────┬──────┘            cmux:terminal_output
-                         │
-   ┌─────────────────────┴────────────────────────┐
-   │                                              │
-   ▼                                              ▼
-┌──────────────────────┐               ┌──────────────────────────────┐
-│ runtime/web/server   │               │ runtime/polling_monitor.py   │
-│ (Express + Socket.io)│               │ • cmux read-screen polling   │
-│ Port 11573 (default) │               │ • XADD cmux:terminal_output  │
-│ • XREAD streams      │               └──────────────────────────────┘
-│ • Push WS events     │
-└──────────┬───────────┘
-           │ Socket.io (init / traffic / stats)
-           ▼
-┌────────────────────────────────────────────┐
-│ runtime/web/client (Vite + React)          │
-│ Port 13331 (default) — opened in browser   │
-│ Views: Dashboard, Traffic, Workspace,      │
-│        Terminal, MethodsTable              │
-└────────────────────────────────────────────┘
+                  │ Redis 6379  │  Stream: cmux:hooks  (default)
+                  │             │  Hash:   <detail_hash>     (enrichment)
+                  └──────┬──────┘
+                         │ XREVRANGE / XREAD / HGET
+                         ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ runtime/server.js  ── express + ws (single process)                  │
+│   • static  → dist/index.html (built React bundle)                   │
+│   • REST    → /api/workspaces, /api/messages, /api/surfaces          │
+│   • stream  → /ws  (XREAD + lib/parser.js normalize → JSON frame)    │
+│   • cmuxRpc → execFile("cmux","rpc", …) for workspace metadata       │
+└───────────────────────┬──────────────────────────────────────────────┘
+                        │ HTTP + WebSocket
+                        ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ runtime/client (React 19, built once with vite)                      │
+│   • Workspace list (Redis stream + cmux meta merge)                  │
+│   • Chat timeline (prompt-submit, pre/post-tool-use, stop/idle)      │
+│   • Auto-scroll, markdown render (utils/markdown.js)                 │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Process lifecycle
@@ -45,46 +39,37 @@
 | Step | Owner | Foreground? |
 |------|-------|-------------|
 | `check-deps.sh` | `start.sh` | yes (blocking) |
-| `cmux-proxy.sh inject` | `start.sh` | yes (returns once proxy is detached) |
-| `npm run dev` (Express + Vite) | `start.sh` (nohup) | no — PID `/tmp/cmux-workshop-web.pid` |
-| `python3 polling_monitor.py` | `start.sh` (nohup) | no — PID `/tmp/cmux-workshop-polling.pid` |
+| `npm run build` (only when `dist/index.html` is missing) | `start.sh` | yes |
+| `node server.js` (express + ws + Redis stream consumer) | `start.sh` (nohup) | no — PID `/tmp/cmux-workshop-web.pid` |
 | Readiness probe (`curl`) | `start.sh` | yes (≤ 60s) |
-| `open http://localhost:13331` (or `$CMUX_WORKSHOP_WEB_PORT`) | calling agent (Claude) | yes |
+| `open http://localhost:11573` (or `$CMUX_WORKSHOP_SERVER_PORT`) | calling agent (Claude) | yes |
 
-## Why a proxy?
+## Why a single server?
 
-cmux exposes a JSON-RPC API over a Unix Domain Socket. The proxy renames the
-real socket to `cmux-real.sock`, listens on the original path, and copies every
-frame to Redis Streams while forwarding the bytes upstream. This is fully
-transparent: clients (`cmux ping`, Claude Code skills, the GUI) need no
-configuration change.
+`redis-chat-ui` is built to run as a single express process in production: vite is only invoked at build time to emit `dist/`, and `server.js` then both serves the static bundle and handles `/api/*` + `/ws`. The launcher therefore has just one node child to track instead of vite + express in parallel — simpler PID ownership, one log file, one port.
 
-## Why Redis Streams?
+## Why a Redis Stream?
 
-- Append-only log with consumer groups → multiple viewers (web server,
-  `monitor.py`, `consumer.py`) replay the same traffic without conflicts.
-- Backpressure-safe — slow consumers don't block the proxy.
-- Persists across restarts of any single component.
+- Append-only log with backpressure-safe replay → the WebSocket layer can resume from the last seen stream id without missing or duplicating messages.
+- Lets multiple consumers (this dashboard, archival jobs, downstream agents) read the same hook history independently.
+- Persists across server restarts; old entries are trimmed by `XTRIM ~ MAXLEN` on a schedule defined in `server.js`.
 
 ## Ports
 
 | Port | Service | Override env var | Notes |
 |------|---------|------------------|-------|
-| 13331 | Vite dev server (React UI) | `CMUX_WORKSHOP_WEB_PORT` | **Open this in the browser** |
-| 11573 | Express + Socket.io | `CMUX_WORKSHOP_SERVER_PORT` (or legacy `PORT`) | Internal; Vite proxies to it |
-| 6379 | Redis | — | Standard local install |
+| 11573 | Express + WebSocket (also serves React bundle) | `CMUX_WORKSHOP_SERVER_PORT` (or legacy `PORT`) | **Open this in the browser** |
+| 6379 | Redis | `REDIS_URL` | Standard local install |
 
-The defaults are deliberately uncommon to dodge collisions with other Vite/Express dev stacks. `start.sh` reclaims either port from a foreign listener (SIGTERM, then SIGKILL) before booting the web stack; export the env vars above to coexist instead.
+The default is deliberately uncommon to dodge collisions with other Express dev stacks (3000/3001/8080). `start.sh` reclaims the port from a foreign listener (SIGTERM, then SIGKILL) before booting; export the env var to coexist instead.
 
 ## File responsibilities
 
 | File | Responsibility |
 |------|----------------|
-| `runtime/proxy.py` | asyncio socket proxy → Redis Streams |
-| `runtime/cmux-proxy.sh` | inject / status / stop / install (LaunchAgent) |
-| `runtime/polling_monitor.py` | call `cmux read-screen` periodically; emit terminal frames |
-| `runtime/monitor.py` | optional CLI viewer of the same streams |
-| `runtime/consumer.py` | example Redis Consumer Group worker |
-| `runtime/web/server/index.js` | Express + Socket.io server; reads streams, exposes WebSocket |
-| `runtime/web/client/src/App.jsx` | React root with Sidebar + view switching |
-| `runtime/web/client/src/hooks/useSocket.js` | Socket.io connection + event subscription |
+| `runtime/server.js` | Express + ws server: REST, `/ws`, stream consumer, detail enrichment, cmux RPC, periodic XTRIM |
+| `runtime/lib/parser.js` | Convert Redis flat field array → object; subcommand → UI hint mapping |
+| `runtime/vite.config.js` | Build-time only: `root: client/`, `outDir: ../dist`; dev proxy for `/api` and `/ws` (only used when running `npm run dev` manually) |
+| `runtime/client/src/App.jsx` | React root: workspace selector + chat view + WebSocket subscription |
+| `runtime/client/src/hooks/useWebSocket.js` | Reconnecting WS client, replay on disconnect |
+| `runtime/client/src/utils/messagePresentation.js` | Subcommand → renderer mapping for the chat timeline |

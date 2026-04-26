@@ -5,11 +5,11 @@ projects into one:
 
 | Source | What was pulled in |
 |---|---|
-| `~/works/agent/cmux-monitor/` | vendored under `skills/project-view/runtime/` (Python proxy + Node web stack) |
+| `~/works/agent/redis-chat-ui/` | vendored under `skills/project-view/runtime/` (express + WebSocket + React 19 — `cmux:hooks` Redis stream consumer) |
 | `~/works/agent/cmux-skills/merong-plugins/plugins/upstar/` | ported to `plugins/cmux-workshop/` (agents/commands/hooks/tools + 7 skills), with all `upstar` references renamed to `cmux-workshop` |
 
 The headline feature is the `/project-view` slash command, which boots the
-monitor stack and opens the dashboard in the default browser.
+redis-chat-ui server and opens the dashboard in the default browser.
 
 ## Repo shape (DO NOT change without updating SKILL.md)
 
@@ -34,7 +34,14 @@ plugins/cmux-workshop/
         project-view/                       ← NEW skill (this plugin's headline)
             SKILL.md
             scripts/{start,stop,check-deps,helpers}.sh
-            runtime/                        vendored cmux-monitor
+            runtime/                        vendored redis-chat-ui
+                server.js                       express + WebSocket + redis stream consumer
+                vite.config.js                  build-time only
+                package.json, package-lock.json
+                lib/parser.js                   stream record normalization
+                client/                         React 19 source (App.jsx, components/, hooks/, styles/, utils/)
+                dist/                           build output (npm run build); gitignored
+                node_modules/                   (npm install); gitignored
             references/{architecture,troubleshooting}.md
         cmux/                               cmux CLI control
         save-conversation/
@@ -68,39 +75,44 @@ the rename pass at the bottom of this file.
 
 | Want to change… | Edit |
 |---|---|
-| Monitor launcher behavior | `skills/project-view/scripts/start.sh` |
+| project-view launcher behavior | `skills/project-view/scripts/start.sh` |
 | Dependency checks / install hints | `skills/project-view/scripts/check-deps.sh` |
 | Skill description / triggers | the relevant `skills/<name>/SKILL.md` frontmatter |
 | Hook chain | `hooks/hooks.json` and `hooks/scripts/*.sh` |
 | Slash commands | `commands/<name>.md` |
 | SQLite schema or db wrapper | `tools/schema.sql`, `tools/db.sh` |
 | Plugin version | both `marketplace.json` AND `plugins/cmux-workshop/.claude-plugin/plugin.json` (lockstep) |
-| Vendored monitor code | DO NOT edit in place — re-vendor from `cmux-monitor` |
+| Vendored redis-chat-ui code | DO NOT edit in place — re-vendor from `redis-chat-ui` |
 
-## Re-vendoring the monitor
+## Re-vendoring redis-chat-ui
 
-The runtime is a snapshot of `~/works/agent/cmux-monitor` (excluding
-`node_modules`, `dist`, `__pycache__`, `.claude/`, `.superpowers/`).
+The runtime is a snapshot of `~/works/agent/redis-chat-ui` (top-level files +
+`client/` + `lib/`, excluding `node_modules`, `dist`, `.git`, `.claude`,
+`conv-logs`).
 
 ```bash
-SRC=/Users/brian/works/agent/cmux-monitor
+SRC=/Users/brian/works/agent/redis-chat-ui
 DST=/Users/brian/works/agent/cmux-workshop/plugins/cmux-workshop/skills/project-view/runtime
 
-cp "$SRC"/{proxy.py,monitor.py,polling_monitor.py,consumer.py,cmux-proxy.sh,requirements.txt,README.md,SPEC.md,SPEC-Terminal-io.md} "$DST/"
+cp "$SRC"/{server.js,vite.config.js,package.json,package-lock.json} "$DST/"
 
 rsync -a --delete \
   --exclude node_modules --exclude dist \
-  "$SRC/web/" "$DST/web/"
-
-chmod +x "$DST/cmux-proxy.sh"
+  "$SRC/client/" "$DST/client/"
+rsync -a --delete "$SRC/lib/" "$DST/lib/"
 ```
 
-After re-vendoring, run `scripts/check-deps.sh` to confirm structure (e.g.
-`web/scripts/dev.js` not renamed, etc).
+After re-vendoring:
+
+1. Run `scripts/check-deps.sh` to confirm structure (e.g. `runtime/server.js`
+   present, `runtime/client/index.html` not renamed).
+2. Build the React bundle once so the launcher does not have to:
+   `( cd "$DST" && npm install && npm run build )`. `start.sh` performs
+   the build automatically when `dist/index.html` is missing.
 
 Keep `plugins/cmux-workshop/AGENTS.md` intact. It is not part of the vendored
-monitor runtime; `project-agent` and `project-reload` copy it into user
-projects as the standard hand-off/report contract.
+runtime; `project-agent` and `project-reload` copy it into user projects as
+the standard hand-off/report contract.
 
 ## Re-syncing the upstar plugin pieces
 
@@ -167,9 +179,11 @@ do not rewrite published history.
 
 - No `tdd-team` skill (dropped from the upstream port).
 - No `/project-view-status`. Use `/project-view` to start and
-  `/project-view-stop` to stop the monitor/proxy stack.
-- No automatic install of Redis / Node / Python deps. `check-deps.sh`
-  reports and exits non-zero only.
+  `/project-view-stop` to stop the redis-chat-ui server.
+- No automatic install of Redis / Node deps. `check-deps.sh` reports and
+  exits non-zero only.
+- No vite dev server in the launcher path — production-only (express
+  serves the prebuilt `dist/` bundle).
 - No CI. Verification is the manual sequence below.
 
 ## Sanity check after any edit
@@ -191,33 +205,29 @@ bash plugins/cmux-workshop/skills/project-view/scripts/check-deps.sh
 
 # end-to-end (only if dependencies are installed)
 bash plugins/cmux-workshop/skills/project-view/scripts/start.sh
-# expect: "READY: http://localhost:13331" on stdout
-# (or your CMUX_WORKSHOP_WEB_PORT override)
+# expect: "READY: http://localhost:11573" on stdout
+# (or your CMUX_WORKSHOP_SERVER_PORT override)
 ```
 
-## Default ports
+## Default port and stream
 
-The launcher binds two ports for the dashboard. Defaults are deliberately
-uncommon so the stack can boot side-by-side with other Vite/Express dev
-servers running on the host:
+The launcher binds a single port. The default is deliberately uncommon so
+the express server can boot side-by-side with other Node dev stacks
+running on the host:
 
 | Component | Env override | Default |
 |---|---|---|
-| Vite dev server (dashboard URL) | `CMUX_WORKSHOP_WEB_PORT` | `13331` |
-| Express + Socket.io | `CMUX_WORKSHOP_SERVER_PORT` (or legacy `PORT`) | `11573` |
+| express + WebSocket (dashboard URL, also serves dist/) | `CMUX_WORKSHOP_SERVER_PORT` (or legacy `PORT`) | `11573` |
+| Redis connection string | `REDIS_URL` | `redis://127.0.0.1:6379` |
+| Redis stream key | `STREAM_KEY` | `cmux:hooks` |
 
-`start.sh` reclaims either port via SIGTERM → SIGKILL when a foreign
-process holds it. Re-vendoring `runtime/web` re-applies these patches:
+`start.sh` reclaims the port via SIGTERM → SIGKILL when a foreign process
+holds it. The launcher passes `PORT`, `CMUX_WORKSHOP_SERVER_PORT`,
+`REDIS_URL`, and `STREAM_KEY` straight into `node server.js`, so vendored
+code does not need to be patched after a re-vendor — `server.js` already
+reads `PORT` and falls back to `CMUX_WORKSHOP_SERVER_PORT` then `11573`.
 
-- `runtime/web/scripts/dev.js` reads the env vars and passes
-  `vite --port <WEB_PORT> --strictPort` plus `PORT=<SERVER_PORT>` to the
-  express child.
-- `runtime/web/client/vite.config.js` honours
-  `CMUX_WORKSHOP_WEB_PORT` for `server.port`/`strictPort` and
-  `CMUX_WORKSHOP_SERVER_PORT` for the proxy target.
-- `runtime/web/server/index.js` falls back to
-  `CMUX_WORKSHOP_SERVER_PORT` (then `11573`) when `PORT` is unset.
-
-If any of these patches drop after a re-vendor, `helpers.sh` will keep
-believing 13331/11573 while the runtime listens on 5173/3001 — restore
-the patches before pushing.
+If you re-vendor `runtime/web/server/index.js`-style upstream changes that
+hardcode 3000 again, restore the env-var precedence in `server.js` before
+pushing — `helpers.sh` will keep believing 11573 while the runtime listens
+on 3000.

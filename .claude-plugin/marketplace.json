@@ -9,7 +9,7 @@
     {
       "name": "cmux-workshop",
       "description": "/project-view cmux monitor launcher + project workspace orchestration (project-init/agent/reload/reset/status), save-conversation, cmux control, code analysis commands, multi-agent personas, and security hooks",
-      "version": "0.1.5",
+      "version": "0.2.0",
       "author": {
         "name": "cmux Workshop"
       },

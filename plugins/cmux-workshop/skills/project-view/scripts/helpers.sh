@@ -1,29 +1,28 @@
 #!/usr/bin/env bash
-# Shared helpers for project-view scripts. PID/log files and log prefix
-# keep the cmux-workshop plugin identifier on purpose.
+# Shared helpers for project-view scripts (redis-chat-ui edition).
 # Source this file; do not execute it directly.
 
 set -euo pipefail
 
 SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNTIME_DIR="$SKILL_ROOT/runtime"
-WEB_DIR="$RUNTIME_DIR/web"
+DIST_DIR="$RUNTIME_DIR/dist"
 
-WEB_PID_FILE="/tmp/cmux-workshop-web.pid"
-WEB_LOG_FILE="/tmp/cmux-workshop-web.log"
-POLLING_PID_FILE="/tmp/cmux-workshop-polling.pid"
-POLLING_LOG_FILE="/tmp/cmux-workshop-polling.log"
+SERVER_PID_FILE="/tmp/cmux-workshop-web.pid"
+SERVER_LOG_FILE="/tmp/cmux-workshop-web.log"
 
-# Defaults are deliberately uncommon ports to dodge collisions with other
-# Vite/Express dev stacks (5173/3001 are too popular). Override with
-# CMUX_WORKSHOP_WEB_PORT / CMUX_WORKSHOP_SERVER_PORT.
-WEB_PORT="${CMUX_WORKSHOP_WEB_PORT:-13331}"
-SERVER_PORT="${CMUX_WORKSHOP_SERVER_PORT:-11573}"
-export CMUX_WORKSHOP_WEB_PORT="$WEB_PORT"
+# Default port is deliberately uncommon to dodge collisions with other
+# Express/Node dev servers (3000 is far too popular). Override with
+# CMUX_WORKSHOP_SERVER_PORT (legacy PORT also accepted).
+SERVER_PORT="${CMUX_WORKSHOP_SERVER_PORT:-${PORT:-11573}}"
 export CMUX_WORKSHOP_SERVER_PORT="$SERVER_PORT"
 
-DASHBOARD_URL="http://localhost:${WEB_PORT}"
-SERVER_URL="http://localhost:${SERVER_PORT}"
+# Stream / Redis defaults match redis-chat-ui's own server.js fallback so the
+# launcher can override them centrally without editing vendored code.
+REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379}"
+STREAM_KEY="${STREAM_KEY:-cmux:hooks}"
+
+DASHBOARD_URL="http://localhost:${SERVER_PORT}"
 
 log()  { printf '[cmux-workshop] %s\n' "$*" >&2; }
 warn() { printf '[cmux-workshop][warn] %s\n' "$*" >&2; }
@@ -137,7 +136,6 @@ kill_port_holders() {
         kill "$listener" 2>/dev/null || true
     done <<< "$listener_pids"
 
-    # Brief settle window before escalating to SIGKILL.
     local waited=0
     while [ "$waited" -lt 3 ]; do
         listener_pids="$(port_listener_pids "$port")"

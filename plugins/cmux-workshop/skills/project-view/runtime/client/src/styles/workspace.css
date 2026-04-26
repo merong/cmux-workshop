@@ -1,0 +1,118 @@
+/* === Workspace Grid === */
+.workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.workspace-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--sp-4);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.workspace-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.workspace-card .ws-id {
+  font-family: monospace;
+  font-size: var(--fs-md);
+  line-height: var(--lh-tight);
+  color: var(--accent);
+  margin-bottom: var(--sp-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workspace-card .ws-cwd {
+  font-family: monospace;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  color: var(--text-muted);
+  margin-bottom: var(--sp-1);
+}
+.workspace-card .ws-meta {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+}
+
+.workspace-status {
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+  line-height: var(--lh-normal);
+}
+
+.workspace-status.error {
+  color: var(--red);
+}
+
+/* === Agent Sidebar === */
+.agent-sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  padding: var(--sp-3);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.agent-sidebar h3 {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-2);
+  letter-spacing: 0.5px;
+}
+.agent-sidebar ul { list-style: none; }
+.agent-sidebar li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 4px;
+  font-size: var(--fs-md);
+  line-height: var(--lh-tight);
+  font-family: monospace;
+  margin-bottom: var(--sp-1);
+}
+.agent-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--agent-color, var(--accent));
+}
+
+@media (max-width: 640px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+    padding: var(--sp-3);
+  }
+
+  .workspace-card {
+    padding: var(--sp-3);
+  }
+
+  .workspace-card .ws-id,
+  .workspace-status {
+    font-size: var(--fs-sm);
+  }
+
+  .workspace-card .ws-cwd {
+    font-size: var(--fs-xs);
+  }
+
+  .workspace-card .ws-meta {
+    font-size: var(--fs-xs);
+  }
+}
