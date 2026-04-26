@@ -40,7 +40,7 @@ pointer lives in the DB.
 |--------|------|-------|
 | `id`             | TEXT PK | English slug, matches `local_surfaces.agent_id` |
 | `name`           | TEXT    | Display name + cmux tab title |
-| `type`           | TEXT    | `'claude'` / `'codex'` / `'gemini'` / `'custom'` |
+| `type`           | TEXT    | `'claude'` / `'codex'` / `'custom'` |
 | `role`           | TEXT    | e.g. `'orchestrator'`, `'implementer'` |
 | `model`          | TEXT    | e.g. `'Opus 4.6'` |
 | `agent_file`     | TEXT    | Relative path to persona `.md` (e.g. `.claude/agents/implementer.md`) |
@@ -154,7 +154,8 @@ file number and `project.schema_version` is mirrored when the singleton project
 row exists.
 
 Migration `003` creates a `(id=1, name='(uninitialized)')` project row only when
-the table is empty so schema-only verification can report `schema_version=3`.
+the table is empty so schema-only verification can report a concrete
+`schema_version`. Migration `004` advances that placeholder to version 4.
 `project:init` replaces that placeholder and resets `created_at` for the real
 project row.
 
@@ -165,6 +166,7 @@ Current migrations:
 | 001 | `tools/migrations/001_init.sql` | Historical 0.1.0 baseline reference |
 | 002 | `tools/migrations/002_local_surfaces_error.sql` | Rebuild `local_surfaces` so `status='error'` is accepted |
 | 003 | `tools/migrations/003_session_tracking.sql` | Add nullable CLI session tracking columns to `local_surfaces` |
+| 004 | `tools/migrations/004_drop_gemini_agent_type.sql` | Rebuild `agents` so `type` is `claude/codex/custom`; legacy unsupported CLI rows become `codex` |
 
 ## Zone reset playbooks
 

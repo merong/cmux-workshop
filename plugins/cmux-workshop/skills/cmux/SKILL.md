@@ -11,7 +11,7 @@ description: >
   CLI, or set sidebar status/progress for build scripts. Do NOT trigger for
   general tmux commands — cmux is a different app. If cmux is not detected
   (no socket, no CLI), inform the user and skip.
-version: 0.2.0
+version: 0.2.1
 ---
 
 # cmux — Terminal Control from Claude Code
@@ -136,8 +136,8 @@ cmux send-key-panel --panel surface:3 ctrl+c
 
 > **중요 — `send` 뒤에는 반드시 `send-key enter`를 호출한다.**
 > `cmux send`는 입력 버퍼에 텍스트만 넣을 뿐 **엔터를 보내지 않는다.**
-> 셸(`bash`/`zsh`)은 `\n`으로 실행되기도 하지만, **Claude Code / Codex /
-> Gemini CLI 같은 TUI 프롬프트는 엔터 키 이벤트를 별도로 받아야 메시지가
+> 셸(`bash`/`zsh`)은 `\n`으로 실행되기도 하지만, **Claude Code / Codex
+> 같은 TUI 프롬프트는 엔터 키 이벤트를 별도로 받아야 메시지가
 > 실제로 전송된다.** 따라서 에이전트 pane에 프롬프트를 보낼 때는:
 >
 > ```bash

@@ -4,7 +4,7 @@
 -- Required placeholders:
 --   {ID}             quoted, e.g. 'implementer'
 --   {NAME}           quoted
---   {TYPE}           quoted enum: 'claude'|'codex'|'gemini'|'custom'
+--   {TYPE}           quoted enum: 'claude'|'codex'|'custom'
 --   {ROLE}           quoted or NULL
 --   {MODEL}          quoted or NULL
 --   {AGENT_FILE}     quoted path

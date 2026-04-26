@@ -11,7 +11,7 @@ description: >
   cross-references .claude/project.db with live cmux tree and saved CLI
   session metadata.
   Auto-migrates project.db schema/project_info for legacy projects on read.
-version: 0.5.1
+version: 0.5.2
 ---
 
 # Project Status
@@ -169,7 +169,7 @@ PRD 미리보기:
 ├──────────────┼─────────────────┼─────────────────┼──────────┤
 │ Claude       │ Claude Opus 4.6 │ orchestrator    │ caller   │
 │ Implementer  │ GPT-5.4         │ 코드 구현        │ codex    │
-│ Reviewer     │ Gemini 3.1 Pro  │ 코드 리뷰        │ gemini   │
+│ Reviewer     │ GPT-5.x         │ 코드 리뷰        │ codex    │
 └──────────────┴─────────────────┴─────────────────┴──────────┘
 
 👉 다음 단계: `project:reload`로 cmux에 에이전트를 배포하세요.
@@ -248,7 +248,7 @@ VERIFY="${CLAUDE_PLUGIN_ROOT}/skills/project-reload/scripts/verify-pane-ready.sh
 ├──────────────┼──────────┼─────────────┼──────────┼──────────────────────────────┤
 │ Claude       │ running  │ surface:1   │ ∅        │ (caller)                     │
 │ Implementer  │ running  │ surface:3   │ a1b2c3d4 │ codex --full-auto            │
-│ Reviewer     │ error    │ surface:4   │ ∅        │ gemini --yolo                │
+│ Reviewer     │ error    │ surface:4   │ a1b2c3d4 │ codex --full-auto            │
 │ Tester       │ missing  │ —           │ ∅        │ (missing)                    │
 └──────────────┴──────────┴─────────────┴──────────┴──────────────────────────────┘
 

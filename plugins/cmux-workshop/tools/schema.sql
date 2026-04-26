@@ -16,7 +16,7 @@ PRAGMA journal_mode = DELETE;
 
 CREATE TABLE IF NOT EXISTS project (
     id          INTEGER PRIMARY KEY CHECK (id = 1),  -- single-row table
-    schema_version INTEGER NOT NULL DEFAULT 3,
+    schema_version INTEGER NOT NULL DEFAULT 4,
     name        TEXT    NOT NULL,
     description TEXT,
     created_at  TEXT    NOT NULL,
@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS prd (
 CREATE TABLE IF NOT EXISTS agents (
     id             TEXT PRIMARY KEY,
     name           TEXT    NOT NULL,
-    type           TEXT    NOT NULL,           -- 'claude' | 'codex' | 'gemini' | 'custom'
+    type           TEXT    NOT NULL CHECK (type IN ('claude', 'codex', 'custom')),
+                                                   -- 'claude' | 'codex' | 'custom'
     role           TEXT,
     model          TEXT,
     agent_file     TEXT,                       -- relative path, e.g. '.claude/agents/implementer.md'

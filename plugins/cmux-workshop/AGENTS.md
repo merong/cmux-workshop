@@ -1,7 +1,7 @@
 # AGENTS.md — cmux-workshop 표준 협업 규범
 
 이 파일은 `project-agent`와 `project-reload`가 프로젝트 루트로 복사하는
-표준 hand-off 문서다. 모든 specialist CLI(Codex, Claude, Gemini 등)는
+표준 hand-off 문서다. 모든 specialist CLI(Codex, Claude)는
 작업 시작 전에 이 파일과 자신에게 주입된 persona 파일을 함께 읽고, 충돌 시
 이 파일의 공통 규범을 우선한다.
 

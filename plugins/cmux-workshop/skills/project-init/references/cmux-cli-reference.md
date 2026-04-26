@@ -131,7 +131,7 @@ cmux read-screen [--workspace <id|ref>] [--surface <id|ref>] [--scrollback] [--l
 
 cmux send [--workspace <id|ref>] [--surface <id|ref>] <text>
     # 텍스트 전송. \n/\t는 셸 터미널에서만 엔터/탭으로 해석되고,
-    # Claude Code/Codex/Gemini 같은 TUI REPL은 별도의 enter 키 이벤트를
+    # Claude Code/Codex 같은 TUI REPL은 별도의 enter 키 이벤트를
     # 받아야 submit된다. 따라서 프롬프트 전달 시 항상 아래 pair 사용:
     #   cmux send <text>
     #   cmux send-key enter

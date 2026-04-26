@@ -15,7 +15,7 @@ description: >
   plain terminal without going through Claude Code's slash command surface.
   Does NOT configure agents or cmux panes — use project:agent and project:reload
   for those.
-version: 0.7.2
+version: 0.7.3
 ---
 
 # Project Init — PRD 작성
@@ -377,7 +377,7 @@ DESC=$("$DB" quote "<프로젝트 1줄 요약>")
 
 "$DB" exec "INSERT OR REPLACE INTO project
     (id, schema_version, name, description, created_at, updated_at)
-    VALUES (1, 3,
+    VALUES (1, 4,
             $NAME, $DESC,
             COALESCE((SELECT created_at FROM project WHERE id=1 AND name <> '(uninitialized)'), datetime('now')),
             datetime('now'))"

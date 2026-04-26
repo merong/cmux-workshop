@@ -4,7 +4,7 @@
 # injecting a persona.
 #
 # Usage:
-#   verify-pane-ready.sh --surface <ref> --cli <claude|codex|gemini|custom>
+#   verify-pane-ready.sh --surface <ref> --cli <claude|codex|custom>
 #                        [--retries N] [--interval SEC] [--min-lines N]
 #
 # Exit codes:
@@ -51,7 +51,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$SURFACE" ]] || { echo "--surface required" >&2; exit 3; }
-[[ -n "$CLI"     ]] || { echo "--cli required (claude|codex|gemini|custom)" >&2; exit 3; }
+[[ -n "$CLI"     ]] || { echo "--cli required (claude|codex|custom)" >&2; exit 3; }
 command -v cmux >/dev/null 2>&1 || { echo "cmux CLI not found" >&2; exit 3; }
 
 # Patterns that indicate the pane crashed or is stuck at an error
@@ -88,14 +88,6 @@ case "$CLI" in
       'codex>'
       'Type your message'
       'Ready'
-    )
-    ;;
-  gemini)
-    READY_PATTERNS=(
-      'gemini>'
-      '>>> '
-      'Type a message'
-      'Gemini'
     )
     ;;
   custom|*)

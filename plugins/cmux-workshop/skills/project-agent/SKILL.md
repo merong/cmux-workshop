@@ -15,7 +15,7 @@ description: >
   Populates agents + layout_splits tables and marks progress.agents complete.
   Auto-migrates project_info for legacy projects before any read/write.
   Does NOT touch cmux panes — use project:reload to deploy.
-version: 0.5.0
+version: 0.6.0
 ---
 
 # Project Agent — AI 에이전트 팀 오케스트레이션
@@ -145,12 +145,24 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/project-agent/scripts/agent-fetch.sh" \
 
 | Type | CLI binary | launch_command | Default model | 적합 |
 |------|-----------|----------------|---------------|------|
-| `claude` | `claude` | `claude --dangerously-skip-permissions` | Claude Opus 4.6 | 심층 분석, 아키텍처, 오케스트레이션 |
-| `codex` | `codex` | `codex --full-auto` | GPT-5.4 | 빠른 구현, 코드 생성 |
-| `gemini` | `gemini` | `gemini --yolo --model gemini-3.1-pro-preview` | Gemini 3.1 Pro | 리뷰, 리서치, 대안 제시 |
+| `claude` | `claude` | `claude --dangerously-skip-permissions` | Claude Opus 4.6 | 오케스트레이션, 깊은 분석, 디버그, 리서치 |
+| `codex` | `codex` | `codex --full-auto` | GPT-5.x | 빠른 구현, 디자인/아키텍처, 프론트엔드, 리뷰 |
 | `custom` | (지정) | (지정) | (지정) | 특수 목적 |
 
 에이전트 `.md` frontmatter의 `model` 필드(`opus`/`sonnet`/`haiku`)는 **성격의 힌트**이지 엄격한 제약이 아니다. cmux type은 페르소나와 역할을 보고 사용자가 결정한다.
+
+## Persona → CLI 기본 매핑
+
+| Persona / 역할 | 기본 CLI | 이유 |
+|---|---|---|
+| `orchestrator` | `claude` | 전체 맥락 유지와 위임 조율 |
+| `implementer` | `codex` | 빠른 구현과 코드 변경 |
+| `reviewer` | `codex` | 코드 리뷰, 대안 제시, diff 분석 |
+| `architect` / `design` / `frontend` | `codex` | 설계 검토, UI/프론트엔드 구현과 리뷰 |
+| `debugger` | `claude` | 원인 분석과 장기 컨텍스트 추적 |
+| `researcher` | `claude` | 문서 조사와 근거 정리 |
+
+사용 가능한 기본 CLI는 `claude`와 `codex`뿐이다. 과거 지원 중단 CLI로 저장된 row는 migration 004에서 `codex`로 보존 변환된다.
 
 ## Workflow
 
@@ -250,7 +262,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/project-agent/scripts/agent-fetch.sh" \
 
 ### Step 5.5: Sync AGENTS.md to project root (AGENTS.md 전파)
 
-프로젝트 루트에 **`AGENTS.md`가 없으면 플러그인의 표준 사본을 복사**한다. 이 파일은 모든 에이전트의 공통 동작 규범(업무 수신/보고 형식, 파괴적 작업 규칙, 에스컬레이션 기준)을 정의하며, 각 CLI(Codex/Claude/Gemini)가 프로젝트 루트에서 자동 로드한다.
+프로젝트 루트에 **`AGENTS.md`가 없으면 플러그인의 표준 사본을 복사**한다. 이 파일은 모든 에이전트의 공통 동작 규범(업무 수신/보고 형식, 파괴적 작업 규칙, 에스컬레이션 기준)을 정의하며, 각 CLI(Codex/Claude)가 프로젝트 루트에서 자동 로드한다.
 
 ```bash
 PLUGIN_AGENTS_MD="${CLAUDE_PLUGIN_ROOT}/../../AGENTS.md"   # marketplace root
@@ -312,7 +324,7 @@ fi
 에이전트 → cmux CLI 매핑:
   orchestrator  → claude (caller, 실행 없음)
   implementer   → codex   (codex --full-auto)
-  reviewer      → gemini  (gemini --yolo --model gemini-3.1-pro-preview)
+  reviewer      → codex   (codex --full-auto)
 
 이 매핑으로 진행?
 ```
@@ -388,7 +400,7 @@ false로 **리셋**한다 (아래 Modification Mode 참조).
 ├──────────────┼──────────────────┼──────────────┼──────────────────────────┤
 │ Claude       │ orchestrator     │ caller       │ local: orchestrator      │
 │ Implementer  │ 코드 구현          │ codex        │ local: implementer       │
-│ Reviewer     │ 코드 리뷰/대안     │ gemini       │ voltagent: 04-.../code-reviewer │
+│ Reviewer     │ 코드 리뷰/대안     │ codex        │ voltagent: 04-.../code-reviewer │
 └──────────────┴──────────────────┴──────────────┴──────────────────────────┘
 
 프로젝트 파일:

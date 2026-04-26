@@ -601,7 +601,7 @@ erDiagram
     agents {
         TEXT id PK
         TEXT name
-        TEXT type "claude|codex|gemini|custom"
+        TEXT type "claude|codex|custom"
         TEXT role
         TEXT model
         TEXT agent_file ".claude/agents/*.md"

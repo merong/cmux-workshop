@@ -12,7 +12,7 @@ description: >
   Reads agents + layout_splits from .claude/project.db, creates/restores missing
   cmux panes, resumes saved Claude/Codex CLI sessions when possible, upserts
   local_workspace + local_surfaces, and marks progress.deployed.
-version: 0.7.0
+version: 0.7.1
 ---
 
 # Project Reload — cmux 배포 / 복원
@@ -146,7 +146,6 @@ DB="${CLAUDE_PLUGIN_ROOT}/tools/db.sh"
 
 ```bash
 command -v codex &>/dev/null && echo "codex:available" || echo "codex:missing"
-command -v gemini &>/dev/null && echo "gemini:available" || echo "gemini:missing"
 command -v claude &>/dev/null && echo "claude:available" || echo "claude:missing"
 ```
 
@@ -191,7 +190,7 @@ fi
 ```
 
 - `session_id`는 반드시 shell-quote한다.
-- `gemini`, `custom`, 또는 `cli_session_id IS NULL`이면 `agent.launch_command`를 그대로 사용한다.
+- `custom` 또는 `cli_session_id IS NULL`이면 `agent.launch_command`를 그대로 사용한다.
 - resume으로 launch한 경우에도 Step 6.10에서 다시 session id를 캡처한다. CLI가 새 session 파일을 만들 수 있기 때문이다.
 
 ### Step 5: Get workspace tree and build status map
@@ -255,7 +254,7 @@ cmux send-key --surface <new_surface_ref> enter     # ← 반드시 필요
 ```
 
 > **주의 — `cmux send`는 엔터를 보내지 않는다.** 입력 버퍼에 텍스트만 쌓을
-> 뿐이므로, 셸이든 TUI CLI(Claude Code/Codex/Gemini)든 **반드시 뒤이어
+> 뿐이므로, 셸이든 TUI CLI(Claude Code/Codex)든 **반드시 뒤이어
 > `cmux send-key enter`를 호출**해야 명령/메시지가 실제로 실행·전송된다.
 > `\n`을 문자열에 붙이는 방식은 셸에서만 동작하고 TUI REPL에서는 무시된다.
 
@@ -271,7 +270,7 @@ CLI가 프롬프트 입력 단계에 도달할 때까지 잠깐 대기한 뒤 `.
 
 ```bash
 if [ -n "$agent_file" ] && [ -f "$agent_file" ]; then
-  sleep 2   # CLI 초기화 대기 (codex/gemini가 REPL에 진입하는 시간)
+  sleep 2   # CLI 초기화 대기 (codex/claude가 REPL에 진입하는 시간)
 
   # AGENTS.md 선행 안내 (프로젝트 루트 파일을 읽도록 지시)
   PREAMBLE="프로젝트 루트의 'AGENTS.md'를 먼저 읽고, 거기 정의된 표준 Hand-off/Report 형식과 파괴적 작업 규칙을 엄수하라. 이 페르소나보다 AGENTS.md가 상위이다. 이어지는 페르소나 본문은 너의 역할 정의이다:"
@@ -324,7 +323,7 @@ case "$RC" in
 esac
 ```
 
-- `agent_type`은 `agents.type` 컬럼 값(`claude`/`codex`/`gemini`/`custom`).
+- `agent_type`은 `agents.type` 컬럼 값(`claude`/`codex`/`custom`).
 - 이 검증 결과로 `local_surfaces.status`를 기록한다(`running` / `error`).
 - **caller는 재시작/복원 대상이 아니므로 검증을 건너뛴다** (이미 이 스크립트를 실행 중인 pane이다).
 - Skipped(CLI missing) 에이전트도 검증하지 않는다.
@@ -520,13 +519,13 @@ cmux notify --title "Project Deployed" --body "All agents running"
 │  Claude (현재)   │ [GPT-5.4]       │
 │  [Opus 4.6]     ├─────────────────┤
 │                 │ Reviewer        │
-│                 │ [Gemini 3.1 Pro]│
+│                 │ [GPT-5.x]       │
 └─────────────────┴─────────────────┘
 
 에이전트 (readiness):
   Claude        — ✅ ready  (caller, surface:1, session: ∅)
   Implementer   — ✅ ready  [GPT-5.4]        (surface:3, session: a1b2c3d4…)
-  Reviewer      — ⚠️ unverified [Gemini 3.1] (surface:4, session: ∅) — 수동 확인 권장
+  Reviewer      — ⚠️ unverified [GPT-5.x] (surface:4, session: a1b2c3d4…) — 수동 확인 권장
 
 진행 단계:
   [✅] 1. PRD 작성
@@ -590,7 +589,7 @@ cmux notify --title "Project Deployed" --body "All agents running"
 - **일부만 running**: 누락분만 생성 + 그 pane에만 페르소나 주입
 - **session_id가 있고 CLI 세션 파일도 있음**: 누락 pane은 resume 명령으로 시작하고, 이후 Step 6.10에서 최신 session id를 다시 캡처
 - **session_id가 있지만 CLI 측 세션 파일이 사라짐**: warning을 출력하고 `agent.launch_command`로 fresh launch fallback. 캡처 성공 시 새 session id로 갱신
-- **session capture 실패**: `cli_session_id=NULL`, `last_active_at=NULL`로 기록. Gemini/custom은 기본적으로 이 상태가 정상
+- **session capture 실패**: `cli_session_id=NULL`, `last_active_at=NULL`로 기록. `custom`은 기본적으로 이 상태가 정상
 - **`agent_file`이 없거나 파일 누락**: 페르소나 주입 skip + 경고. pane은 정상 생성/실행. 사용자에게 `project:agent`로 복구 안내.
 - **프로젝트 루트 `AGENTS.md` 누락 + 플러그인에도 없음**: 경고 후 배포는 계속. 사용자에게 수동 작성 또는 플러그인 재설치 권고. 공통 규범 없이 운영되는 상태이므로 caller가 hand-off 시 규범을 매번 명시해야 한다.
 - **페르소나 주입 시 CLI가 아직 준비 안 됨**: Step 6.9 readiness 검증에서 최대 `--retries 10 --interval 1.5`로 폴링, Step 9b에서 한 번 더 재검증. 둘 다 실패하면 `error` 상태로 기록하고 사용자에게 수동 개입 안내 (재시도 루프를 무한대로 돌지 않음).

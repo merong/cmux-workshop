@@ -8,7 +8,7 @@
 --     | db.sh run /dev/stdin
 
 INSERT OR REPLACE INTO project (id, schema_version, name, description, created_at, updated_at)
-VALUES (1, 3,
+VALUES (1, 4,
         {NAME}, {DESCRIPTION},
         COALESCE((SELECT created_at FROM project WHERE id = 1 AND name <> '(uninitialized)'), datetime('now')),
         datetime('now'));

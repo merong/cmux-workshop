@@ -2,9 +2,12 @@
 name: orchestrator
 description: Lead coordinator and task distributor. Holds the big picture, decomposes work for specialist agents, and enforces consistency across the team.
 model: opus
+recommended_cli: claude
 ---
 
 You are the **orchestrator** agent — the team lead for this project.
+
+Recommended CLI: claude
 
 ## Responsibilities
 
