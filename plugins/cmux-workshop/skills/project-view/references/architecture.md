@@ -26,7 +26,7 @@
 ┌──────────────────────┐               ┌──────────────────────────────┐
 │ runtime/web/server   │               │ runtime/polling_monitor.py   │
 │ (Express + Socket.io)│               │ • cmux read-screen polling   │
-│ Port 3001            │               │ • XADD cmux:terminal_output  │
+│ Port 11573 (default) │               │ • XADD cmux:terminal_output  │
 │ • XREAD streams      │               └──────────────────────────────┘
 │ • Push WS events     │
 └──────────┬───────────┘
@@ -34,7 +34,7 @@
            ▼
 ┌────────────────────────────────────────────┐
 │ runtime/web/client (Vite + React)          │
-│ Port 5173 — opened in browser              │
+│ Port 13331 (default) — opened in browser   │
 │ Views: Dashboard, Traffic, Workspace,      │
 │        Terminal, MethodsTable              │
 └────────────────────────────────────────────┘
@@ -49,7 +49,7 @@
 | `npm run dev` (Express + Vite) | `start.sh` (nohup) | no — PID `/tmp/cmux-workshop-web.pid` |
 | `python3 polling_monitor.py` | `start.sh` (nohup) | no — PID `/tmp/cmux-workshop-polling.pid` |
 | Readiness probe (`curl`) | `start.sh` | yes (≤ 60s) |
-| `open http://localhost:5173` | calling agent (Claude) | yes |
+| `open http://localhost:13331` (or `$CMUX_WORKSHOP_WEB_PORT`) | calling agent (Claude) | yes |
 
 ## Why a proxy?
 
@@ -68,11 +68,13 @@ configuration change.
 
 ## Ports
 
-| Port | Service | Notes |
-|------|---------|-------|
-| 5173 | Vite dev server (React UI) | **Open this in the browser** |
-| 3001 | Express + Socket.io | Internal; Vite proxies to it |
-| 6379 | Redis | Standard local install |
+| Port | Service | Override env var | Notes |
+|------|---------|------------------|-------|
+| 13331 | Vite dev server (React UI) | `CMUX_WORKSHOP_WEB_PORT` | **Open this in the browser** |
+| 11573 | Express + Socket.io | `CMUX_WORKSHOP_SERVER_PORT` (or legacy `PORT`) | Internal; Vite proxies to it |
+| 6379 | Redis | — | Standard local install |
+
+The defaults are deliberately uncommon to dodge collisions with other Vite/Express dev stacks. `start.sh` reclaims either port from a foreign listener (SIGTERM, then SIGKILL) before booting the web stack; export the env vars above to coexist instead.
 
 ## File responsibilities
 

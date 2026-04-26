@@ -37,23 +37,24 @@ redis-cli ping     # → PONG
 
 ### "Dashboard did not become ready in time"
 1. Inspect `/tmp/cmux-workshop-web.log` — Vite usually prints the issue.
-2. If startup fails before the web server launches, `start.sh` now prints the
-   process holding port `5173` or `3001`:
+2. `start.sh` reclaims a foreign listener on either default port automatically
+   (SIGTERM, then SIGKILL) before booting the web stack. If it bails anyway,
+   the offending PID is logged. Verify manually with:
    ```bash
-   lsof -nP -iTCP:5173 -sTCP:LISTEN
-   lsof -nP -iTCP:3001 -sTCP:LISTEN
+   lsof -nP -iTCP:13331 -sTCP:LISTEN     # vite dashboard
+   lsof -nP -iTCP:11573 -sTCP:LISTEN     # express + socket.io
    ```
-   Stop the old service or run `/project-view-stop` if it is a stale
-   cmux-workshop monitor. Do not edit the vendored Vite config in place.
+   To pick different ports instead of killing the squatter, export
+   `CMUX_WORKSHOP_WEB_PORT` and/or `CMUX_WORKSHOP_SERVER_PORT` and re-run.
 3. If the log shows missing modules, install deps:
    ```bash
    (cd "$SKILL/runtime/web" && npm run install:all)
    ```
 
 ### Browser opens but shows "disconnected"
-The Express server (port 3001) is down. Check `/tmp/cmux-workshop-web.log` for the
-`server` half — `npm run dev` runs both Vite and Express via `web/scripts/dev.js`.
-Restart with `/project-view-stop`, then re-run `/project-view`.
+The Express server (default port `11573`) is down. Check `/tmp/cmux-workshop-web.log`
+for the `server` half — `npm run dev` runs both Vite and Express via
+`web/scripts/dev.js`. Restart with `/project-view-stop`, then re-run `/project-view`.
 
 ### Traffic log is empty
 The proxy may have failed to inject. Run:

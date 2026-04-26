@@ -17,6 +17,14 @@
 #   CMUX_WORKSHOP_HOME       absolute path to a local cmux-workshop clone
 #   CLAUDE_PLUGIN_ROOT       set automatically inside a Claude Code session
 #   ~/.claude/plugins/cache  marketplace cache, latest version auto-picked
+#
+# Port overrides (forwarded into start.sh):
+#   CMUX_WORKSHOP_WEB_PORT     vite dev port  (default 13331)
+#   CMUX_WORKSHOP_SERVER_PORT  express port   (default 11573)
+#
+# start.sh forcibly reclaims either port if a foreign process is squatting on
+# it (SIGTERM, then SIGKILL). Use the env vars above to pick different ports
+# instead of killing the squatter.
 
 set -euo pipefail
 
@@ -84,6 +92,10 @@ Usage: $0 [start|stop|check]
   start  (default) launch proxy + web + polling, then print READY URL
   stop   shut down web + polling + proxy
   check  run dependency probe only
+
+Default ports (override with env vars):
+  CMUX_WORKSHOP_WEB_PORT     vite dev port  (default 13331)
+  CMUX_WORKSHOP_SERVER_PORT  express port   (default 11573)
 
 Resolved scripts dir: $PV_SCRIPTS
 USAGE

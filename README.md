@@ -4,7 +4,7 @@ A unified Claude Code plugin that combines:
 
 1. **`/project-view`** — a one-shot launcher for the bundled cmux monitor
    (socket proxy + Express/Socket.io server + Vite/React dashboard +
-   terminal polling). Opens `http://localhost:5173` automatically.
+   terminal polling). Opens `http://localhost:13331` automatically.
 2. The full **project-workspace toolchain** ported from the upstream
    `upstar` plugin: eight skills, project slash-command shims, three code
    slash commands, six agent personas,
@@ -62,7 +62,7 @@ cmux-workshop/
 ```
 
 …dependency check → proxy inject → web dev server → terminal polling →
-opens `http://localhost:5173`.
+opens `http://localhost:13331`.
 
 ### Prerequisites (one-time, manual)
 

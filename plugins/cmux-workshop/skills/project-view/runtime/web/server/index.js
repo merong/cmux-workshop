@@ -6,7 +6,10 @@ import { execSync } from "child_process";
 import net from "net";
 import path from "path";
 
-const PORT = process.env.PORT || 3001;
+const PORT =
+  process.env.PORT ||
+  process.env.CMUX_WORKSHOP_SERVER_PORT ||
+  11573;
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379/0";
 const STREAM_REQ = "cmux:requests";
 const STREAM_RES = "cmux:responses";

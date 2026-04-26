@@ -191,5 +191,33 @@ bash plugins/cmux-workshop/skills/project-view/scripts/check-deps.sh
 
 # end-to-end (only if dependencies are installed)
 bash plugins/cmux-workshop/skills/project-view/scripts/start.sh
-# expect: "READY: http://localhost:5173" on stdout
+# expect: "READY: http://localhost:13331" on stdout
+# (or your CMUX_WORKSHOP_WEB_PORT override)
 ```
+
+## Default ports
+
+The launcher binds two ports for the dashboard. Defaults are deliberately
+uncommon so the stack can boot side-by-side with other Vite/Express dev
+servers running on the host:
+
+| Component | Env override | Default |
+|---|---|---|
+| Vite dev server (dashboard URL) | `CMUX_WORKSHOP_WEB_PORT` | `13331` |
+| Express + Socket.io | `CMUX_WORKSHOP_SERVER_PORT` (or legacy `PORT`) | `11573` |
+
+`start.sh` reclaims either port via SIGTERM → SIGKILL when a foreign
+process holds it. Re-vendoring `runtime/web` re-applies these patches:
+
+- `runtime/web/scripts/dev.js` reads the env vars and passes
+  `vite --port <WEB_PORT> --strictPort` plus `PORT=<SERVER_PORT>` to the
+  express child.
+- `runtime/web/client/vite.config.js` honours
+  `CMUX_WORKSHOP_WEB_PORT` for `server.port`/`strictPort` and
+  `CMUX_WORKSHOP_SERVER_PORT` for the proxy target.
+- `runtime/web/server/index.js` falls back to
+  `CMUX_WORKSHOP_SERVER_PORT` (then `11573`) when `PORT` is unset.
+
+If any of these patches drop after a re-vendor, `helpers.sh` will keep
+believing 13331/11573 while the runtime listens on 5173/3001 — restore
+the patches before pushing.

@@ -150,7 +150,7 @@ flowchart LR
     subgraph Ops["운영 · 관찰"]
         V["/project-view"]
         Mon[("프록시 + 웹 +<br/>폴링")]
-        UI[("브라우저<br/>localhost:5173")]
+        UI[("브라우저<br/>localhost:13331")]
         S["/project-status"]
         V --> Mon --> UI
     end
@@ -193,7 +193,7 @@ flowchart LR
         Proxy[proxy.py<br/>소켓 프록시]
         Redis[(Redis Streams)]
         WebSrv[Express + Socket.io]
-        UI[Vite + React<br/>localhost:5173]
+        UI[Vite + React<br/>localhost:13331]
     end
 
     User -->|"/project-* 호출"| ClaudeCode
@@ -245,7 +245,7 @@ flowchart TD
 
     View["/project-view"]
     MonitorUp[모니터 풀스택 ON]
-    Browser[("브라우저 자동 오픈<br/>localhost:5173")]
+    Browser[("브라우저 자동 오픈<br/>localhost:13331")]
 
     Start --> Init
     Init --> Brainstorm
@@ -419,9 +419,9 @@ sequenceDiagram
         Poll->>R: XADD cmux:terminal_output
     end
 
-    PV->>Web: curl localhost:5173 (60s 헬스체크)
+    PV->>Web: curl localhost:13331 (60s 헬스체크)
     Web-->>PV: 200 OK
-    PV-->>CC: "READY: http://localhost:5173"
+    PV-->>CC: "READY: http://localhost:13331"
     CC->>B: open URL
     B-->>U: 대시보드 표시 (Traffic / Workspace / Terminal / Stats)
 ```
@@ -821,7 +821,7 @@ ls ~/.claude/plugins/cache/                # 설치된 플러그인 캐시
 ## 운영 메모
 
 - PID/로그: `/tmp/cmux-workshop-{web,polling}.{pid,log}`, `/tmp/cmux-proxy.log`
-- 모니터 대시보드: `http://localhost:5173`
+- 모니터 대시보드: `http://localhost:13331`
 - 모니터 종료: `/project-view-stop`
 - 환경 변수: `CMUX_WORKSHOP_DB_PATH` (DB 경로 오버라이드), `CMUX_WORKSHOP_DEBUG=1` (db.sh 트레이스)
 

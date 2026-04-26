@@ -11,7 +11,7 @@ description: >
   `cmux` skill for that). If cmux, Redis, Node.js, or Python redis is missing,
   surface the dependency guidance produced by check-deps.sh to the user
   instead of trying to install anything yourself.
-version: 0.1.1
+version: 0.1.2
 ---
 
 # project-view — cmux Workshop Monitor Launcher
@@ -20,11 +20,22 @@ This skill bundles `cmux-monitor` as part of the cmux-workshop plugin. A single 
 
 1. Verifies dependencies (cmux app, Redis server, Node.js ≥ 18, Python `redis`, web `node_modules`).
 2. Injects the cmux socket proxy so every JSON-RPC call is mirrored into Redis Streams.
-3. Starts the Express + Socket.io server and the Vite dev server (port `5173`).
+3. Reclaims the dashboard ports if a foreign process holds them, then starts the Express + Socket.io server (port `11573`) and the Vite dev server (port `13331`).
 4. Starts `polling_monitor.py` so the dashboard's Terminal View is populated.
-5. Waits until `http://localhost:5173` answers, then opens it in the default browser.
+5. Waits until `http://localhost:13331` answers, then opens it in the default browser.
 
 The skill is **idempotent**. Re-running it while everything is already up is a no-op that just reopens the browser.
+
+### Default ports and overrides
+
+The defaults are deliberately uncommon to dodge collisions with other Vite/Express dev stacks running on the host:
+
+| Component | Env var | Default |
+|---|---|---|
+| Vite dev server (dashboard URL) | `CMUX_WORKSHOP_WEB_PORT` | `13331` |
+| Express + Socket.io server | `CMUX_WORKSHOP_SERVER_PORT` | `11573` |
+
+If either port is held by a process that is **not** the project-view runtime tracked via `/tmp/cmux-workshop-web.pid`, `start.sh` automatically reclaims it (SIGTERM, then SIGKILL after a short grace period). Set the env vars above instead if you want to coexist with that process.
 
 ## How to invoke
 
@@ -37,14 +48,16 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/project-view/scripts/start.sh"
 `start.sh` prints progress on stderr and a single sentinel line on stdout when ready:
 
 ```
-READY: http://localhost:5173
+READY: http://localhost:13331
 ```
 
 When you observe that line, immediately open the URL:
 
 ```bash
-open http://localhost:5173
+open http://localhost:13331
 ```
+
+If `CMUX_WORKSHOP_WEB_PORT` is exported, the URL printed in the sentinel reflects the override.
 
 If `start.sh` exits non-zero, **do not retry automatically**. Surface the dependency guidance it printed to the user verbatim and ask them to install / start the missing piece.
 

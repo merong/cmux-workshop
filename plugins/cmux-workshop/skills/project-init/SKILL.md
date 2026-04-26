@@ -15,7 +15,7 @@ description: >
   plain terminal without going through Claude Code's slash command surface.
   Does NOT configure agents or cmux panes — use project:agent and project:reload
   for those.
-version: 0.7.3
+version: 0.7.4
 ---
 
 # Project Init — PRD 작성
@@ -211,9 +211,19 @@ fi
   .claude/script/project-view.sh stop     # = /project-view-stop
   .claude/script/project-view.sh check    # 의존성 점검만
 
+기본 포트(다른 dev 서버와 충돌하지 않도록 일부러 흔치 않은 값):
+  CMUX_WORKSHOP_WEB_PORT      vite dev port  (기본 13331)
+  CMUX_WORKSHOP_SERVER_PORT   express port   (기본 11573)
+
+기본 포트가 점유 중이면 start.sh가 자동으로 점유 프로세스를 SIGTERM →
+SIGKILL로 회수한 뒤 시작한다. 기존 프로세스를 죽이지 않으려면 위 환경변수로
+다른 포트를 지정해서 실행한다:
+
+  CMUX_WORKSHOP_WEB_PORT=20013 .claude/script/project-view.sh
+
 cmux 안에서 caller를 막지 않으려면:
   cmux new-split right
-  .claude/script/project-view.sh && open http://localhost:5173
+  .claude/script/project-view.sh && open http://localhost:13331
 ```
 
 **git 정책:** 이 wrapper는 프로젝트와 함께 commit해도 안전하다 — 절대 경로나

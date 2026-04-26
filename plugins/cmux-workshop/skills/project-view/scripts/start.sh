@@ -13,11 +13,17 @@ source "$SCRIPT_DIR/helpers.sh"
 # 1) Dependency check (aborts on its own if anything is missing)
 bash "$SCRIPT_DIR/check-deps.sh"
 
-# The web stack always binds the fixed public contract ports below. We keep
-# Vite's vendored config untouched and fail early when another process owns
-# either port; PID files are trusted only after cwd/cmd ownership validation.
-assert_port_available_or_owned 5173 "$WEB_PID_FILE" "$WEB_DIR" "npm"
-assert_port_available_or_owned 3001 "$WEB_PID_FILE" "$WEB_DIR" "npm"
+# Reclaim our ports if a foreign process is squatting on them. The web stack
+# binds WEB_PORT (vite, default 13331) and SERVER_PORT (express, default 11573).
+# These defaults are deliberately uncommon to dodge collisions; both can be
+# overridden via CMUX_WORKSHOP_WEB_PORT / CMUX_WORKSHOP_SERVER_PORT.
+free_port_if_foreign "$WEB_PORT"    "$WEB_PID_FILE" "$WEB_DIR" "npm"
+free_port_if_foreign "$SERVER_PORT" "$WEB_PID_FILE" "$WEB_DIR" "npm"
+
+# After potential reclaim, re-validate ownership. If still occupied at this
+# point it's an unexpected race; bail loudly rather than silently continue.
+assert_port_available_or_owned "$WEB_PORT"    "$WEB_PID_FILE" "$WEB_DIR" "npm"
+assert_port_available_or_owned "$SERVER_PORT" "$WEB_PID_FILE" "$WEB_DIR" "npm"
 
 cd "$RUNTIME_DIR"
 
@@ -51,10 +57,15 @@ if is_pid_owned_by_cwd "$WEB_PID_FILE" "$WEB_DIR" "npm"; then
 else
     [ -f "$WEB_PID_FILE" ] && warn "Ignoring stale or unowned web PID file: $WEB_PID_FILE"
     rm -f "$WEB_PID_FILE"
-    log "Starting web dashboard (logs: $WEB_LOG_FILE)..."
+    log "Starting web dashboard on http://localhost:${WEB_PORT} (logs: $WEB_LOG_FILE)..."
     (
         cd "$WEB_DIR"
-        start_background "$WEB_PID_FILE" "$WEB_LOG_FILE" npm run dev
+        # PORT feeds the vendored express server (server/index.js).
+        # CMUX_WORKSHOP_WEB_PORT / _SERVER_PORT feed scripts/dev.js + vite.
+        PORT="$SERVER_PORT" \
+        CMUX_WORKSHOP_WEB_PORT="$WEB_PORT" \
+        CMUX_WORKSHOP_SERVER_PORT="$SERVER_PORT" \
+            start_background "$WEB_PID_FILE" "$WEB_LOG_FILE" npm run dev
     )
 fi
 
