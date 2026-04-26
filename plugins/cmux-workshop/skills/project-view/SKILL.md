@@ -11,7 +11,7 @@ description: >
   `cmux` skill for that). If Redis or Node.js is missing, surface the
   dependency guidance produced by check-deps.sh to the user instead of trying
   to install anything yourself.
-version: 0.2.0
+version: 0.2.1
 ---
 
 # project-view — cmux Workshop Project View

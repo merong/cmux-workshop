@@ -82,6 +82,45 @@ async function enrichFromDetail(msg) {
   return msg;
 }
 
+const PROJECT_INFO_SQL = `
+SELECT project_name,
+       project_summary,
+       project_root,
+       cmux_workspace_title,
+       git_remote_url,
+       git_branch,
+       captured_at,
+       (SELECT COUNT(*) FROM agents) AS planned_agent_count,
+       (SELECT COUNT(*) FROM progress WHERE completed = 1) AS completed_phase_count,
+       (SELECT COUNT(*) FROM progress) AS total_phase_count,
+       (SELECT group_concat(phase, ',') FROM progress WHERE completed = 1) AS completed_phases
+FROM project_info
+WHERE id = 1
+LIMIT 1;
+`;
+
+function readProjectInfo(cwd) {
+  return new Promise((resolve) => {
+    if (!cwd || typeof cwd !== "string") return resolve(null);
+
+    const root = path.resolve(cwd);
+    const dbPath = path.resolve(root, ".claude", "project.db");
+    if (!dbPath.startsWith(`${root}${path.sep}`) || !fs.existsSync(dbPath)) {
+      return resolve(null);
+    }
+
+    execFile("sqlite3", ["-json", dbPath, PROJECT_INFO_SQL], { timeout: 1500 }, (err, stdout) => {
+      if (err || !stdout.trim()) return resolve(null);
+      try {
+        const rows = JSON.parse(stdout);
+        resolve(rows[0] || null);
+      } catch {
+        resolve(null);
+      }
+    });
+  });
+}
+
 // --- REST API ---
 
 // --- cmux RPC helper ---
@@ -171,24 +210,27 @@ app.get("/api/workspaces", async (req, res) => {
       }
     }
 
-    // 4. 병합: Redis 활동 데이터 + cmux 메타데이터
-    const workspaces = Array.from(workspaceMap.values()).map((w) => {
-      const meta = cmuxMeta.get(w.workspace_id) || {};
-      const surfaces = cmuxSurfaces.get(w.workspace_id) || [];
-      return {
-        ...w,
-        surface_ids: Array.from(w.surface_ids),
-        // cmux metadata
-        title: meta.title || "",
-        description: meta.description || "",
-        custom_color: meta.custom_color || null,
-        selected: meta.selected || false,
-        pinned: meta.pinned || false,
-        listening_ports: meta.listening_ports || [],
-        ref: meta.ref || "",
-        cmux_surfaces: surfaces,
-      };
-    });
+    // 4. 병합: Redis 활동 데이터 + cmux 메타데이터 + project.db 요약
+    const workspaces = await Promise.all(
+      Array.from(workspaceMap.values()).map(async (w) => {
+        const meta = cmuxMeta.get(w.workspace_id) || {};
+        const surfaces = cmuxSurfaces.get(w.workspace_id) || [];
+        return {
+          ...w,
+          surface_ids: Array.from(w.surface_ids),
+          // cmux metadata
+          title: meta.title || "",
+          description: meta.description || "",
+          custom_color: meta.custom_color || null,
+          selected: meta.selected || false,
+          pinned: meta.pinned || false,
+          listening_ports: meta.listening_ports || [],
+          ref: meta.ref || "",
+          cmux_surfaces: surfaces,
+          project_info: await readProjectInfo(w.cwd),
+        };
+      })
+    );
 
     res.json(workspaces);
   } catch (err) {
@@ -403,7 +445,7 @@ app.get("/{*splat}", (req, res, next) => {
 // --- Start ---
 
 server.listen(PORT, () => {
-  console.log(`Redis Chat UI running on http://localhost:${PORT}`);
+  console.log(`CMUX Workshop running on http://localhost:${PORT}`);
   console.log(`Stream: ${STREAM_KEY}, Redis: ${REDIS_URL}`);
   consumeStream();
 

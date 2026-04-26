@@ -18,16 +18,24 @@ export function useAgents(messages, surfacesById) {
 
     for (const msg of messages) {
       const surfaceId = msg.surface_id;
-      if (!surfaceId || nextAgents.has(surfaceId)) continue;
+      if (!surfaceId) continue;
 
       const meta = surfacesById?.get(surfaceId);
-      nextAgents.set(surfaceId, {
-        id: surfaceId,
-        color: COLORS[nextAgents.size % COLORS.length],
-        label: meta?.title || surfaceId.substring(0, 8),
-        ref: meta?.ref || "",
-        type: meta?.type || "",
-      });
+      if (!nextAgents.has(surfaceId)) {
+        nextAgents.set(surfaceId, {
+          id: surfaceId,
+          color: COLORS[nextAgents.size % COLORS.length],
+          label: meta?.title || surfaceId.substring(0, 8),
+          ref: meta?.ref || "",
+          type: meta?.type || "",
+          eventCount: 0,
+          lastSeen: "",
+        });
+      }
+
+      const agent = nextAgents.get(surfaceId);
+      agent.eventCount += 1;
+      agent.lastSeen = msg.timestamp || agent.lastSeen;
     }
 
     return nextAgents;

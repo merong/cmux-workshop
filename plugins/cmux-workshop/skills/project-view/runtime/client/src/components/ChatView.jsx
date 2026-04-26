@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import TopBar from "./TopBar";
 import AgentSidebar from "./AgentSidebar";
 import Timeline from "./Timeline";
@@ -9,9 +9,21 @@ import { useWorkspaceSurfaces } from "../hooks/useWorkspaceSurfaces";
 
 export default function ChatView({ workspaceId, onBack }) {
   const [expandAll, setExpandAll] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState(null);
   const { messages, status } = useWorkspaceMessages(workspaceId);
   const surfacesById = useWorkspaceSurfaces(workspaceId);
   const { agents, agentsById } = useAgents(messages, surfacesById);
+  const filteredMessages = useMemo(() => {
+    if (!selectedAgentId) return messages;
+    return messages.filter((msg) => msg.surface_id === selectedAgentId);
+  }, [messages, selectedAgentId]);
+
+  useEffect(() => {
+    if (selectedAgentId && !agentsById.has(selectedAgentId)) {
+      setSelectedAgentId(null);
+    }
+  }, [agentsById, selectedAgentId]);
+
   const headerInfo = useMemo(() => {
     const lastMessage = messages[messages.length - 1];
     return {
@@ -21,7 +33,7 @@ export default function ChatView({ workspaceId, onBack }) {
   }, [messages]);
 
   const { ref: timelineRef, atBottom, handleScroll, scrollToBottom } =
-    useAutoScroll(messages.length);
+    useAutoScroll(filteredMessages.length);
 
   return (
     <div className="screen">
@@ -34,9 +46,14 @@ export default function ChatView({ workspaceId, onBack }) {
         onToggleExpandAll={() => setExpandAll((v) => !v)}
       />
       <div className="chat-layout">
-        <AgentSidebar agents={agents} />
+        <AgentSidebar
+          agents={agents}
+          totalMessages={messages.length}
+          selectedAgentId={selectedAgentId}
+          onSelectAgent={setSelectedAgentId}
+        />
         <Timeline
-          messages={messages}
+          messages={filteredMessages}
           agentsById={agentsById}
           timelineRef={timelineRef}
           onScroll={handleScroll}
