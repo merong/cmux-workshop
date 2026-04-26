@@ -9,13 +9,14 @@ description: >
   "프로젝트 브레인스토밍", "project brainstorm".
   Requires cmux environment. MUST delegate ideation to superpowers:brainstorming
   skill, then writes .claude/PRD.md and initializes .claude/project.db (phase 1 of 3).
-  Always bootstraps project.db + project_info (auto-migrates existing projects)
-  before any PRD work. Also installs .claude/script/project-view.sh — a thin
-  shell wrapper that lets the project launch the cmux monitor stack from a
-  plain terminal without going through Claude Code's slash command surface.
-  Does NOT configure agents or cmux panes — use project:agent and project:reload
-  for those.
-version: 0.7.5
+  As the very first step (before any PRD work), installs
+  .claude/script/project-view.sh — a thin shell wrapper that lets the project
+  launch the cmux monitor stack from a plain terminal — and asks the user
+  once whether to build, boot, and open the project-view web dashboard now.
+  Then bootstraps project.db + project_info (auto-migrates existing projects)
+  before PRD writing begins. Does NOT configure agents or cmux panes — use
+  project:agent and project:reload for those.
+version: 0.8.0
 ---
 
 # Project Init — PRD 작성
@@ -61,7 +62,7 @@ Skill: superpowers:brainstorming
 1. cmux가 실행 중이고 현재 터미널이 cmux 내부여야 한다 (`CMUX_WORKSPACE_ID` 환경변수 존재)
 2. `cmux ping` 응답 정상
 3. `superpowers:brainstorming` 스킬이 설치/활성화되어 있어야 한다 (브레인스토밍 강제 의존성)
-4. **`.claude/project.db`가 존재하고 `project_info` 행이 채워져 있어야 한다** — 없으면 Step 1에서 **자동 migration**된다 (기존 프로젝트도 동일한 경로로 초기화됨)
+4. **`.claude/project.db`가 존재하고 `project_info` 행이 채워져 있어야 한다** — 없으면 Step 2에서 **자동 migration**된다 (기존 프로젝트도 동일한 경로로 초기화됨)
 
 **선결조건 불충족 시 동작 — 스킬 즉시 종료:**
 
@@ -70,7 +71,7 @@ Skill: superpowers:brainstorming
 | `CMUX_WORKSPACE_ID` 없음 | "cmux workspace 안에서 실행해야 합니다. cmux를 먼저 실행하고 그 터미널에서 다시 호출하세요." → **중단** |
 | `cmux ping` 실패 | "cmux가 응답하지 않습니다. cmux 데몬을 확인하세요." → **중단** |
 | `superpowers:brainstorming` 미설치 | "Superpowers 플러그인이 필요합니다. `/plugin install superpowers@claude-plugins-official`로 설치하세요." → **중단** |
-| `project.db` 없음 / `project_info` 비어 있음 | **중단하지 않음** — Step 1에서 스키마 생성 + `project-info-capture.sh` 자동 실행으로 migration 후 진행 |
+| `project.db` 없음 / `project_info` 비어 있음 | **중단하지 않음** — Step 2에서 스키마 생성 + `project-info-capture.sh` 자동 실행으로 migration 후 진행 |
 
 이 스킬은 PRD 작성 자체는 cmux를 직접 사용하지 않지만, 이어질 `project:agent` → `project:reload` 파이프라인이 cmux 내부에서만 완결되므로 **진입 시점부터** 환경을 강제한다.
 
@@ -87,7 +88,7 @@ Skill: superpowers:brainstorming
 
 이 스킬이 건드리는 테이블:
 
-- `project_info` (id=1 singleton) — 프로젝트 경로/cmux workspace/git 환경 (bootstrap, Step 1)
+- `project_info` (id=1 singleton) — 프로젝트 경로/cmux workspace/git 환경 (bootstrap, Step 2)
 - `project` (id=1 singleton) — PRD 설계 관점의 이름/설명/타임스탬프
 - `progress` (phase='prd') — `completed`, `completed_at` 세팅
 - `prd` (id=1) — PRD 파일 경로 기록
@@ -108,7 +109,7 @@ if [ -z "${CMUX_WORKSPACE_ID:-}" ]; then echo "NOT_IN_CMUX"; else cmux ping && e
 |------|------|
 | `NOT_IN_CMUX` | 안내 메시지 출력 후 **중단** (파일 생성/수정 금지) |
 | `cmux ping` 에러 | 안내 메시지 출력 후 **중단** |
-| `CMUX_OK` | **Step 1 (project.db bootstrap)**로 진행 |
+| `CMUX_OK` | **Step 1 (project-view wrapper 설치 + 사용자 확인)**로 진행 |
 
 **중단 시 안내 예시:**
 
@@ -125,10 +126,142 @@ project:init은 cmux workspace 안에서만 실행할 수 있습니다.
   3. `project init`을 다시 호출하세요.
 ```
 
-### Step 1: Bootstrap project.db + project_info (migration 포함)
+### Step 1: Install project-view wrapper and offer to launch the web UI
+
+**강제 단계 — Step 0 통과 직후 가장 먼저 실행한다. 멱등.**
+
+이 단계는 두 가지 책임을 가진다:
+
+1. `.claude/script/project-view.sh` shell wrapper를 프로젝트에 멱등으로 설치한다.
+2. 사용자에게 "지금 project-view 웹 대시보드를 띄울지" **단 한 번** 묻고, "예"이면 build → run → 브라우저 오픈까지 자동 진행한다.
+
+#### 1a. `.claude/script/project-view.sh` 설치 (강제)
+
+caller pane이 다른 작업으로 바쁘거나 슬래시 명령을 입력할 수 없는 상황에서도 `/project-view` 기능을 셸 한 줄로 띄울 수 있도록, 프로젝트 루트의 `.claude/script/`에 wrapper를 복사한다. wrapper는 마켓플레이스 캐시 → `CLAUDE_PLUGIN_ROOT` → `CMUX_WORKSHOP_HOME` 순서로 실제 `start.sh` 위치를 자동 탐색하므로 설치 방식과 무관하게 동작한다.
+
+```bash
+SRC="${CLAUDE_PLUGIN_ROOT}/skills/project-init/references/project-view.sh"
+DST_DIR="$PWD/.claude/script"
+DST="$DST_DIR/project-view.sh"
+
+mkdir -p "$DST_DIR"
+
+# 멱등 복사 — 내용이 동일하면 mtime/권한만 갱신.
+if [ ! -f "$DST" ] || ! cmp -s "$SRC" "$DST"; then
+    cp "$SRC" "$DST"
+    chmod +x "$DST"
+    echo "→ .claude/script/project-view.sh 설치/갱신 완료"
+else
+    chmod +x "$DST"
+    echo "→ .claude/script/project-view.sh 최신 상태"
+fi
+```
+
+**분기 요약:**
+
+| 상태 | 동작 |
+|------|------|
+| `.claude/script/` 없음 | `mkdir -p`로 생성 → wrapper 복사 |
+| wrapper 없음 | 새로 복사 + `chmod +x` |
+| wrapper 존재 + 내용 동일 | 권한만 보장(`chmod +x`), 복사 skip |
+| wrapper 존재 + 내용 상이 (플러그인 업그레이드 등) | 최신 wrapper로 덮어쓰기 |
+
+**git 정책:** 이 wrapper는 프로젝트와 함께 commit해도 안전하다 — 절대 경로나
+머신 로컬 정보를 담지 않고, 동작 시점에 동적으로 플러그인 위치를 해결한다.
+다른 머신에서 plugin이 다른 경로에 설치되어 있어도 그대로 작동한다.
+
+#### 1b. project-view 웹 대시보드 자동 기동 여부 확인 (필수 1회)
+
+wrapper 설치 직후 **반드시 한 번** 사용자에게 묻는다 (이 스킬 호출당 1회):
+
+```text
+프로젝트 진행 상황(Claude Code/cmux의 hook 이벤트)을 실시간 chat timeline으로
+보고 싶다면 지금 project-view 웹 대시보드를 띄울 수 있습니다.
+
+지금 띄울까요? (예 / 아니오)
+```
+
+**사용자 응답 분기:**
+
+| 응답 | 동작 |
+|------|------|
+| 예 / yes / y / 네 | **1c 실행**(빌드 + 기동 + 브라우저 오픈) → 완료/실패 무관하게 Step 2로 진행 |
+| 아니오 / no / n | Step 2로 즉시 진행. 안내: "필요할 때 `.claude/script/project-view.sh start`로 언제든 띄울 수 있습니다." |
+| 그 외 / 무응답 | 한 번만 더 짧게 재확인 후, 응답이 명확치 않으면 **아니오**로 처리하고 Step 2로 진행 |
+
+이 질문은 **Step 1에서 단 한 번**만 한다. 한 번 거절하면 같은 호출 안에서는 다시 묻지 않는다 (사용자가 직접 wrapper로 띄우거나 `/project-view` 슬래시 명령으로 띄울 수 있음).
+
+#### 1c. 빌드 + 기동 + 브라우저 오픈 (예 분기 전용)
+
+사용자가 "예"라고 답한 경우에만 실행한다. **PRD 작성을 막지 않도록** 60초 timeout 안에서만 시도하고, 실패해도 Step 2로 계속 진행한다.
+
+```bash
+RUNTIME="${CLAUDE_PLUGIN_ROOT}/skills/project-view/runtime"
+
+# 1) node_modules가 없으면 1회 자동 설치 (start.sh는 자동 설치하지 않음)
+if [ ! -d "$RUNTIME/node_modules" ]; then
+    echo "→ runtime/node_modules 없음 — npm install (최초 1회, 약 30~60초)..."
+    ( cd "$RUNTIME" && npm install )
+fi
+
+# 2) launcher 실행 — start.sh가 dist/index.html 부재 시 npm run build를 자동 수행
+#    (출력에서 "READY: <URL>" sentinel을 추출)
+LAUNCH_OUT=$(bash "$PWD/.claude/script/project-view.sh" start) || LAUNCH_OUT="$LAUNCH_OUT"
+URL=$(printf '%s\n' "$LAUNCH_OUT" | awk '/^READY: /{print $2; exit}')
+
+# 3) READY URL이 잡히면 기본 브라우저로 오픈
+if [ -n "${URL:-}" ]; then
+    open "$URL"
+    echo "✅ project-view 대시보드 오픈: $URL"
+else
+    echo "⚠️ project-view 기동 실패 — Step 2로 계속 진행합니다."
+    echo "   재시도: bash .claude/script/project-view.sh start"
+fi
+```
+
+`start.sh`가 정상 종료되면 마지막 줄에 다음 형태의 sentinel을 stdout으로 출력한다:
+
+```
+READY: http://localhost:11573
+```
+
+(포트는 `CMUX_WORKSHOP_SERVER_PORT` env override가 있을 때 해당 값.)
+
+**실패 처리 — 어떤 경우에도 PRD 작성을 막지 않는다:**
+
+| 증상 | 동작 |
+|------|------|
+| `check-deps.sh` 실패 (Redis/Node/runtime 누락) | 출력된 install hint를 사용자에게 그대로 전달하고 Step 2로 진행 |
+| `npm install` 실패 | 마지막 로그를 사용자에게 보여주고 Step 2로 진행 |
+| `npm run build` 실패 | start.sh가 vite 출력을 stderr로 노출. 사용자에게 안내 후 Step 2로 진행 |
+| 60초 안에 READY 미수신 | start.sh가 마지막 50줄 server log를 stderr로 출력. `references/troubleshooting.md` 안내 후 Step 2로 진행 |
+
+**핵심 원칙:** 1c는 "보조 도구 기동"이므로, 어떤 실패도 메인 워크플로우(PRD 작성)를 막지 않는다. 실패는 사용자에게 보고만 하고 Step 2로 계속 진행한다.
+
+**사용자가 직접 띄우고 싶을 때 (참고):**
+
+```text
+프로젝트 루트에서 셸로 직접 실행:
+  .claude/script/project-view.sh start    # = /project-view
+  .claude/script/project-view.sh stop     # = /project-view-stop
+  .claude/script/project-view.sh check    # 의존성 점검만
+
+기본값(다른 dev 서버와 충돌하지 않도록 일부러 흔치 않은 포트):
+  CMUX_WORKSHOP_SERVER_PORT   express + ws port  (기본 11573)
+  REDIS_URL                   redis://127.0.0.1:6379
+  STREAM_KEY                  cmux:hooks
+
+기본 포트가 점유 중이면 start.sh가 자동으로 점유 프로세스를 SIGTERM →
+SIGKILL로 회수한 뒤 시작한다. 기존 프로세스를 죽이지 않으려면 환경변수로
+다른 포트를 지정해서 실행한다:
+
+  CMUX_WORKSHOP_SERVER_PORT=20013 .claude/script/project-view.sh
+```
+
+### Step 2: Bootstrap project.db + project_info (migration 포함)
 
 **강제 단계 — 모든 경로에서 반드시 실행된다.** 여기서 DB 파일과 `project_info`
-싱글톤 행이 보장되므로, Step 2 이후 로직은 안전하게 DB를 읽고 쓸 수 있다.
+싱글톤 행이 보장되므로, Step 3 이후 로직은 안전하게 DB를 읽고 쓸 수 있다.
 
 ```bash
 DB="${CLAUDE_PLUGIN_ROOT}/tools/db.sh"
@@ -161,77 +294,13 @@ fi
 | DB 파일 없음 | `db.sh migrate`로 스키마 생성/마이그레이션 → `project-info-capture.sh`로 신규 캡처 |
 | DB 존재 + `project_info` 비어 있음 (**legacy migration**) | `project-info-capture.sh`로 자동 채움. 기존 `project`/`prd`/`agents`/... 데이터는 건드리지 않음 |
 | DB 존재 + `project_info.project_root` != `$PWD` | 경로 변경 감지 → 재캡처 (cmux workspace title 등 갱신) |
-| 모두 최신 | 통과 (Step 2로) |
+| 모두 최신 | 통과 (Step 3으로) |
 
 **이 단계는 절대 skip되지 않는다.** 기존에 이미 PRD/에이전트까지 완료된
 프로젝트도 반드시 `project_info` 캡처를 먼저 받고 그 이후에 이 스킬의 나머지
 작업이 진행된다.
 
-### Step 1b: Install `.claude/script/project-view.sh` shell wrapper
-
-**강제 단계 — 모든 경로에서 반드시 실행된다.** caller pane이 다른 작업으로
-바쁘거나 슬래시 명령을 입력할 수 없는 상황에서도 `/project-view` 기능을 셸
-한 줄로 띄울 수 있도록, 프로젝트 루트의 `.claude/script/`에 wrapper를
-복사한다. wrapper는 마켓플레이스 캐시 → `CLAUDE_PLUGIN_ROOT` →
-`CMUX_WORKSHOP_HOME` 순서로 실제 `start.sh` 위치를 자동 탐색하므로 설치
-방식과 무관하게 동작한다.
-
-```bash
-SRC="${CLAUDE_PLUGIN_ROOT}/skills/project-init/references/project-view.sh"
-DST_DIR="$PWD/.claude/script"
-DST="$DST_DIR/project-view.sh"
-
-mkdir -p "$DST_DIR"
-
-# 멱등 복사 — 내용이 동일하면 mtime/권한만 갱신.
-if [ ! -f "$DST" ] || ! cmp -s "$SRC" "$DST"; then
-    cp "$SRC" "$DST"
-    chmod +x "$DST"
-    echo "→ .claude/script/project-view.sh 설치/갱신 완료"
-else
-    chmod +x "$DST"
-    echo "→ .claude/script/project-view.sh 최신 상태"
-fi
-```
-
-**분기 요약:**
-
-| 상태 | 동작 |
-|------|------|
-| `.claude/script/` 없음 | `mkdir -p`로 생성 → wrapper 복사 |
-| wrapper 없음 | 새로 복사 + `chmod +x` |
-| wrapper 존재 + 내용 동일 | 권한만 보장(`chmod +x`), 복사 skip |
-| wrapper 존재 + 내용 상이 (플러그인 업그레이드 등) | 최신 wrapper로 덮어쓰기 |
-
-**사용 예 (사용자 안내 메시지):**
-
-```text
-프로젝트 루트에서 셸로 직접 실행:
-  .claude/script/project-view.sh start    # = /project-view
-  .claude/script/project-view.sh stop     # = /project-view-stop
-  .claude/script/project-view.sh check    # 의존성 점검만
-
-기본값(다른 dev 서버와 충돌하지 않도록 일부러 흔치 않은 포트):
-  CMUX_WORKSHOP_SERVER_PORT   express + ws port  (기본 11573)
-  REDIS_URL                   redis://127.0.0.1:6379
-  STREAM_KEY                  cmux:hooks
-
-기본 포트가 점유 중이면 start.sh가 자동으로 점유 프로세스를 SIGTERM →
-SIGKILL로 회수한 뒤 시작한다. 기존 프로세스를 죽이지 않으려면 환경변수로
-다른 포트를 지정해서 실행한다:
-
-  CMUX_WORKSHOP_SERVER_PORT=20013 .claude/script/project-view.sh
-
-cmux 안에서 caller를 막지 않으려면:
-  cmux new-split right
-  .claude/script/project-view.sh && open http://localhost:11573
-```
-
-**git 정책:** 이 wrapper는 프로젝트와 함께 commit해도 안전하다 — 절대 경로나
-머신 로컬 정보를 담지 않고, 동작 시점에 동적으로 플러그인 위치를 해결한다.
-다른 머신에서 plugin이 다른 경로에 설치되어 있어도 그대로 작동한다.
-
-### Step 2: Check existing PRD status
+### Step 3: Check existing PRD status
 
 DB에 기록된 PRD 진행 상태를 조회한다.
 
@@ -241,7 +310,7 @@ DB에 기록된 PRD 진행 상태를 조회한다.
 
 **분기:**
 
-- **PRD 없음 (`progress.prd.completed = 0`)** → Step 3으로 진행 (신규/재작성)
+- **PRD 없음 (`progress.prd.completed = 0`)** → Step 4로 진행 (신규/재작성)
 - **PRD 완료 (`progress.prd.completed = 1`)** →
   아래 쿼리로 타임스탬프/PRD 경로도 읽어 출력:
   ```bash
@@ -264,9 +333,9 @@ DB에 기록된 PRD 진행 상태를 조회한다.
     2) 다음 단계로 진행 → `project:agent`
     3) 취소
   ```
-  사용자가 1번을 선택한 경우에만 Step 3으로 진행.
+  사용자가 1번을 선택한 경우에만 Step 4로 진행.
 
-### Step 3: Invoke superpowers:brainstorming (강제)
+### Step 4: Invoke superpowers:brainstorming (강제)
 
 **반드시 `Skill` 도구로 `superpowers:brainstorming` 스킬을 호출한다.** 이 단계를 건너뛰거나 스킬 본문 로직을 복제하지 않는다.
 
@@ -278,12 +347,12 @@ Skill(skill="superpowers:brainstorming")
 
 **이 스킬에서만 적용되는 두 가지 예외:**
 
-1. **Step 6 (Write design doc) 오버라이드**: 설계 문서를 `docs/superpowers/specs/...`가 아니라 `.claude/PRD.md`로 기록한다 (구조는 Step 4 참조). 사용자에게도 "PRD로 저장됩니다"를 명시한다.
-2. **Step 9 (Transition to implementation) 오버라이드**: `writing-plans`를 호출하지 않는다. 대신 이 스킬의 Step 6(project.db 갱신) 및 Step 7(`project:agent` 안내)로 이어간다.
+1. **Step 6 (Write design doc) 오버라이드**: 설계 문서를 `docs/superpowers/specs/...`가 아니라 `.claude/PRD.md`로 기록한다 (구조는 Step 5 참조). 사용자에게도 "PRD로 저장됩니다"를 명시한다.
+2. **Step 9 (Transition to implementation) 오버라이드**: `writing-plans`를 호출하지 않는다. 대신 이 스킬의 Step 7(project.db 갱신) 및 Step 8(`project:agent` 안내)로 이어간다.
 
-사용자가 브레인스토밍 단계에서 설계를 승인할 때까지 **아래 Step 4~6은 실행하지 않는다.** 중단/취소 시에는 파일을 쓰지 않는다.
+사용자가 브레인스토밍 단계에서 설계를 승인할 때까지 **아래 Step 5~7은 실행하지 않는다.** 중단/취소 시에는 파일을 쓰지 않는다.
 
-### Step 4: Convert approved design to PRD
+### Step 5: Convert approved design to PRD
 
 브레인스토밍의 "Write design doc" 타이밍에 도달하면, 승인된 설계를 아래 PRD 구조로 재포맷하여 `.claude/PRD.md`에 기록한다.
 
@@ -362,7 +431,7 @@ Skill(skill="superpowers:brainstorming")
 - 추측한 항목은 "TBD" 또는 "Open Questions"에 명시
 - 브레인스토밍에서 이미 확정된 내용을 그대로 반영 (재질문 금지)
 
-### Step 5: Write PRD file
+### Step 6: Write PRD file
 
 ```bash
 mkdir -p .claude
@@ -370,7 +439,7 @@ mkdir -p .claude
 
 Write 도구로 `.claude/PRD.md`를 작성한다. 작성 후 `brainstorming` 스킬의 **Spec self-review**와 **User reviews written spec** 단계를 그대로 수행한다 (PRD 파일을 대상으로).
 
-### Step 6: Initialize/update project.db
+### Step 7: Initialize/update project.db
 
 **스키마 생성** (항상 먼저 실행 — 멱등):
 
@@ -419,7 +488,7 @@ PRD_PATH=$("$DB" quote ".claude/PRD.md")
 
 쿼리 템플릿 참조: `skills/project-init/scripts/queries/`.
 
-### Step 7: Report and transition to `project:agent`
+### Step 8: Report and transition to `project:agent`
 
 사용자가 PRD를 최종 승인한 직후 아래 형식으로 보고하고, **자동으로 Phase 2로 전환할지 사용자에게 묻는다.** (writing-plans 호출은 수행하지 않는다 — 이 파이프라인의 "implementation transition"은 에이전트 팀 구성이다.)
 
