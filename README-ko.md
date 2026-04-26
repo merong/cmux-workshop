@@ -11,6 +11,31 @@
 
 ---
 
+## 한눈에 — 스크린샷 & 데모
+
+### 스크린샷
+
+![Workspace selector](docs/images/01-workspace-selector.png)
+*Workspace selector 화면. 좌측 cmux 사이드바와 Claude Code 터미널(`/project-init` 진행 중)에서 막 부트스트랩한 프로젝트가, 우측 CMUX Workshop 대시보드에 workspace 카드(project.db에서 읽은 project_name·git branch·phase·listening ports로 enrich) 형태로 즉시 잡힌다.*
+
+![project-init과 chat timeline](docs/images/02-project-init-and-chat.png)
+*`/project-reload`로 페르소나(orchestrator·implementer·reviewer)를 cmux pane에 배포한 직후. 좌측 Claude Code가 작업을 진행하는 동안, 우측 redis-chat-ui가 hook 이벤트(prompt-submit · tool 호출 · stop)를 workspace 단위 chat timeline으로 실시간 노출한다.*
+
+![Multi-agent 활동](docs/images/03-multi-agent-activity.png)
+*4개의 cmux pane(Claude Code · Orchestrator · Implementer · Reviewer)이 동시에 동작 중. 우측 사이드바의 "All messages / 에이전트별 카드"에서 surface 단위로 메시지를 필터링할 수 있고, 각 카드는 누적 event 수를 함께 표시한다.*
+
+### 데모 동영상
+
+녹화된 실시간 데모는 Google Drive 폴더에서 확인할 수 있다:
+
+→ [cmux-workshop demo videos (Google Drive)](https://drive.google.com/drive/folders/1ajLLNxfW3IxUBGWOwxxiopVDGCloj2u1?usp=drive_link)
+
+수록 영상:
+- **`cmux-agent-create`** — `/project-init` → `/project-agent` → `/project-reload` 까지, 새 멀티-에이전트 워크스페이스가 생성되는 전체 과정.
+- **`cmux-agent-done`** — 배포된 에이전트 팀이 작업을 마무리하고, 그 결과가 chat timeline과 cmux pane 트리에 반영되는 모습.
+
+---
+
 ## 출발점 — 에이전트 오케스트레이션의 작은 균열들
 
 여러 에이전트를 하나의 프로젝트에 투입해 본 사람이라면 익숙할 풍경.
